@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Walker — Morphogenetic Event Field</title>
+
+<style>
+html,body{
+margin:0;
+padding:0;
+background:#05060a;
+overflow:hidden;
+font-family:system-ui,Segoe UI,Roboto,Arial;
+}
+canvas{display:block;}
+.hint{
+position:fixed;
+bottom:12px;
+left:14px;
+font-size:12px;
+color:rgba(255,255,255,.7);
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.3/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.easycam@1.2.1/p5.easycam.min.js"></script>
+</head>
+
+<body>
+
+<div class="hint">
+Drag = orbit • Wheel = zoom • Click = trigger event
+</div>
+
+<script>
+
+let cam;
+let t=0;
+let bursts=[];
+
+function setup(){
+createCanvas(windowWidth,windowHeight,WEBGL);
+cam=createEasyCam({distance:650});
+setAttributes('antialias',true);
+}
+
+function windowResized(){
+resizeCanvas(windowWidth,windowHeight);
+}
+
+function mousePressed(){
+bursts.push({t:0});
+}
+
+function draw(){
+
+background(5,6,10);
+
+perspective(PI/3,width/height,0.1,5000);
+
+t+=0.012;
+
+ambientLight(30);
+directionalLight(200,200,255,-0.6,0.4,-0.2);
+pointLight(255,120,190,0,0,400);
+
+push();
+
+rotateY(t*0.6);
+rotateX(t*0.4);
+
+let R=260+90*sin(t*2);
+
+for(let i=0;i<180;i++){
+
+let a=i*0.3;
+let b=i*0.2;
+
+let x=R*cos(a)*(0.6+0.4*cos(b+t));
+let y=R*sin(b)*(0.6+0.4*sin(a-t));
+let z=R*sin(a*0.8+b*0.4);
+
+push();
+
+translate(x,y,z);
+
+rotateY(t+i*0.03);
+rotateX(t*0.7+i*0.02);
+
+stroke(255,160,240,120);
+strokeWeight(1);
+fill(60,120,255,35);
+
+let s=7+9*sin(i*0.14+t*2);
+
+if(i%3==0) box(s);
+if(i%3==1) sphere(s*0.6);
+if(i%3==2) cone(s*0.6,s*1.2);
+
+pop();
+}
+
+pop();
+
+bursts=bursts.filter(b=>b.t<1);
+
+for(let b of bursts){
+
+b.t+=0.03;
+
+push();
+
+rotateY(t*0.5);
+
+let r=80+420*b.t;
+
+for(let i=0;i<40;i++){
+
+let a=TWO_PI*i/40;
+
+let x=r*cos(a);
+let z=r*sin(a);
+
+push();
+translate(x,0,z);
+noFill();
+stroke(180,240,255,120*(1-b.t));
+torus(12,2,10,12);
+pop();
+
+}
+
+pop();
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
