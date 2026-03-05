@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Design as Event — Morphogenetic Field</title>
   <style>
-    html,body{margin:0;height:100%;background:#04060a;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;}
+    html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;background:#04060a;}
     canvas{display:block;}
     .ui{
-      position:fixed;top:14px;left:14px;max-width:560px;
+      position:fixed;top:14px;left:14px;max-width:640px;
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
@@ -19,7 +19,7 @@
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
-      min-width:160px;text-align:right;
+      min-width:190px;text-align:right;
     }
   </style>
 </head>
@@ -28,10 +28,10 @@
   <div class="ui">
     <b>DESIGN AS EVENT — MORPHOGENETIC FIELD</b><br>
     Click → event birth<br>
-    Background → pulsing ring-field (context topology)<br>
-    Lines → depth perspective (distance-weighted) + long-lived edge-memory trails
+    Background → gradient + pulsing ring-field<br>
+    Meaning → edge-trails persist; <b>φ-resonant relations</b> keep more memory
   </div>
-  <div class="hud" id="hud">events: 0<br>links: 0</div>
+  <div class="hud" id="hud">events: 0<br>links: 0<br>phi-links: 0</div>
 
   <canvas id="c"></canvas>
 
@@ -52,50 +52,61 @@
     addEventListener("mousemove",(e)=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
 
     let events = [];
-    // key -> {a,b,strength,ttl,trail,trailAge}
+    // key -> {a,b,strength,ttl,trail,trailAge,phiScore}
     let edgeMemory = new Map();
+
+    const PHI = (1 + Math.sqrt(5)) / 2;      // 1.618...
+    const INV_PHI = 1 / PHI;                 // 0.618...
 
     const P = {
       // event birth
-      energyMin: 0.8,
-      energyMax: 1.85,
-      radiusBase: 90,
-      radiusK: 190,
+      energyMin: 0.85,
+      energyMax: 1.90,
+      radiusBase: 95,
+      radiusK: 195,
       lifeBase: 1.0,
       lifeK: 0.62,
       phaseSpeed: 0.015,
 
-      // pulsing ring-field (the “background” you want)
-      rings: 24,
-      ringPoints: 170,
-      ringSpacing: 15,
-      ringStart: 58,
-      mouseGain: 0.12,           // subtle baseline drift
-      pulseA: 0.075,             // breathing amplitude
+      // background (NOT black)
+      bgFade: 0.07,            // lower -> longer traces, but we also paint gradient each frame
+      bgVignette: 0.22,        // darker edges but not black
+      bgGlow: 0.26,            // center glow strength
 
-      // LINKING: easier to connect, but depth-weighted
+      // pulsing ring-field
+      rings: 26,
+      ringPoints: 180,
+      ringSpacing: 14,
+      ringStart: 56,
+      mouseGain: 0.11,
+      pulseA: 0.075,
+
+      // link activation
       edgeMaxD_factor: 0.95,
 
-      // MEMORY: persist MUCH longer
-      edgeCharge: 0.095,
-      edgeDecay: 0.0015,         // very slow strength decay
-      edgeTTL_gain: 3.6,
-      edgeTTL_decay: 0.0018,     // very slow TTL decay
+      // memory (base)
+      edgeCharge: 0.090,
+      edgeDecay: 0.0012,
+      edgeTTL_gain: 3.3,
+      edgeTTL_decay: 0.0014,
 
-      // DRAW perspective (near vs far)
-      widthNear: 4.2,
-      widthFar: 0.8,
+      // perspective: near vs far
+      widthNear: 4.8,
+      widthFar: 0.85,
       alphaNear: 0.92,
       alphaFar: 0.10,
 
       // trails
-      trailMaxPoints: 80,
+      trailMaxPoints: 90,
       trailSampleEvery: 2,
-      trailFade: 0.006,          // slower trail fade (more persistence)
+      trailFade: 0.0052,
       trailCurviness: 0.24,
 
-      // background fade (keep traces longer)
-      bgFade: 0.09
+      // φ resonance
+      phiTolerance: 0.12,          // how close to φ / 1/φ to count
+      phiBoostTTL: 2.8,            // multiplier for TTL gain when resonant
+      phiBoostStrength: 1.55,      // multiplier for strength charge when resonant
+      phiTrailFadeFactor: 0.55     // trails fade slower when resonant
     };
 
     addEventListener("click",(e)=>createEvent(e.clientX,e.clientY));
@@ -115,6 +126,9 @@
       });
     }
 
+    function lerp(a,b,t){ return a + (b-a)*t; }
+    function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
     function bentMidpoint(ax,ay,bx,by,amount){
       const mx=(ax+bx)/2, my=(ay+by)/2;
       const dx=bx-ax, dy=by-ay;
@@ -124,11 +138,40 @@
       return { x: mx + nx*wobble, y: my + ny*wobble };
     }
 
-    // Depth weight: 0 (far) .. 1 (near)
+    // 0 (far) .. 1 (near)
     function depthWeight(d, maxD){
       const x = 1 - (d / Math.max(1,maxD));
-      // make near relations pop more (nonlinear)
-      return Math.max(0, Math.min(1, x*x));
+      return clamp01(x*x);
+    }
+
+    // φ-score: 0..1 (1 = perfect match)
+    function phiScoreScaled(d, rA, rB){
+      // scale-invariant normalization
+      const s = d / Math.max(1e-6, Math.sqrt(rA * rB));
+      const errPhi = Math.abs(s - PHI);
+      const errInv = Math.abs(s - INV_PHI);
+      const err = Math.min(errPhi, errInv);
+      // convert error to score
+      const score = 1 - (err / P.phiTolerance);
+      return clamp01(score);
+    }
+
+    function drawGradientBackground(){
+      // subtle gradient + vignette so it's NOT black
+      const cx = w/2, cy = h/2;
+
+      // center glow
+      const grd = ctx.createRadialGradient(cx, cy, Math.min(w,h)*0.05, cx, cy, Math.min(w,h)*0.95);
+      grd.addColorStop(0, `rgba(18,28,44,${P.bgGlow})`);
+      grd.addColorStop(0.55, `rgba(6,10,18,0.24)`);
+      grd.addColorStop(1, `rgba(4,6,10,${P.bgVignette})`);
+
+      ctx.fillStyle = grd;
+      ctx.fillRect(0,0,w,h);
+
+      // persistence layer (keeps traces)
+      ctx.fillStyle = `rgba(4,6,10,${P.bgFade})`;
+      ctx.fillRect(0,0,w,h);
     }
 
     function drawPulsingField(){
@@ -141,13 +184,11 @@
           let x=cx + baseRadius*Math.cos(a);
           let y=cy + baseRadius*Math.sin(a);
 
-          // subtle mouse drift (keeps background alive)
           const mdx = (mouse.x - cx)/Math.max(1,cx);
           const mdy = (mouse.y - cy)/Math.max(1,cy);
           x += mdx*baseRadius*P.mouseGain;
           y += mdy*baseRadius*P.mouseGain;
 
-          // pulsing ripple (your “breathing background”)
           const pulse = (Math.sin(t*1.0 + r*0.18) + Math.cos(t*1.35 + a*2.0)) * 0.5;
           x += Math.sin(a*3 + t + r*0.10) * baseRadius * P.pulseA;
           y += Math.cos(a*4 + t + r*0.10) * baseRadius * P.pulseA;
@@ -157,8 +198,7 @@
           if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
         }
         ctx.closePath();
-
-        const alpha=0.08+(r/P.rings)*0.24;
+        const alpha=0.07+(r/P.rings)*0.22;
         ctx.strokeStyle=`rgba(140,210,255,${alpha})`;
         ctx.lineWidth=1;
         ctx.stroke();
@@ -167,22 +207,34 @@
 
     function buildActiveEdges(){
       const active = [];
+      let phiCount = 0;
+
       for(let i=0;i<events.length;i++){
         for(let j=i+1;j<events.length;j++){
           const a=events[i], b=events[j];
           const dx=a.x-b.x, dy=a.y-b.y;
           const d=Math.sqrt(dx*dx+dy*dy);
+
           const maxD=(a.radius+b.radius)*P.edgeMaxD_factor;
           if(d < maxD){
             const wNear = depthWeight(d, maxD);
-            const charge = wNear * (0.55 + 0.45*Math.min(a.life,b.life)); // near links charge more
+
+            // φ resonance score 0..1
+            const ps = phiScoreScaled(d, a.radius, b.radius);
+            if(ps > 0) phiCount++;
+
+            // near + φ reinforce charging
+            const baseCharge = wNear * (0.55 + 0.45*Math.min(a.life,b.life));
+            const charge = baseCharge * (1 + ps*0.85);
+
             const minId=Math.min(a.id,b.id), maxId=Math.max(a.id,b.id);
             const key=`${minId}-${maxId}`;
-            active.push({key,a,b,charge,d,maxD,wNear});
+            active.push({key,a,b,charge,d,maxD,wNear,phiScore:ps});
           }
         }
       }
-      return active;
+
+      return { active, phiCount };
     }
 
     function updateEdgeMemory(active){
@@ -192,8 +244,11 @@
         rec.strength = Math.max(0, rec.strength - P.edgeDecay);
         rec.ttl = Math.max(0, rec.ttl - P.edgeTTL_decay);
 
+        // φ edges keep trails longer
+        const fade = P.trailFade * (1 - (rec.phiScore||0) * (1 - P.phiTrailFadeFactor));
+
         for(let i=0;i<rec.trailAge.length;i++){
-          rec.trailAge[i] = Math.max(0, rec.trailAge[i] - P.trailFade);
+          rec.trailAge[i] = Math.max(0, rec.trailAge[i] - fade);
         }
         while(rec.trailAge.length && rec.trailAge[0] <= 0.001){
           rec.trailAge.shift();
@@ -206,16 +261,21 @@
       }
 
       for(const e of active){
-        const rec = edgeMemory.get(e.key) || { a:e.a, b:e.b, strength:0, ttl:0, trail:[], trailAge:[] };
+        const rec = edgeMemory.get(e.key) || { a:e.a, b:e.b, strength:0, ttl:0, trail:[], trailAge:[], phiScore:0 };
         rec.a=e.a; rec.b=e.b;
 
-        // strong persistence: charge adds slowly but sticks
-        rec.strength = Math.min(1.0, rec.strength + P.edgeCharge*e.charge);
-        rec.ttl = Math.min(1.0, rec.ttl + P.edgeTTL_gain*0.01*e.charge);
+        // keep best φ-score seen for this relation
+        rec.phiScore = Math.max(rec.phiScore||0, e.phiScore);
 
-        // sample curved midpoint for trail -> creates sequences
+        const phiMulS = 1 + rec.phiScore * (P.phiBoostStrength - 1);
+        const phiMulT = 1 + rec.phiScore * (P.phiBoostTTL - 1);
+
+        rec.strength = Math.min(1.0, rec.strength + P.edgeCharge * e.charge * phiMulS);
+        rec.ttl = Math.min(1.0, rec.ttl + P.edgeTTL_gain * 0.01 * e.charge * phiMulT);
+
         if(frame % P.trailSampleEvery === 0){
-          const mp=bentMidpoint(e.a.x,e.a.y,e.b.x,e.b.y, P.trailCurviness*160*e.charge);
+          const bend = P.trailCurviness * (150 + 110*rec.phiScore) * e.charge;
+          const mp=bentMidpoint(e.a.x,e.a.y,e.b.x,e.b.y, bend);
           rec.trail.push(mp);
           rec.trailAge.push(1.0);
           while(rec.trail.length > P.trailMaxPoints){
@@ -227,8 +287,6 @@
       }
     }
 
-    function lerp(a,b,t){ return a + (b-a)*t; }
-
     function drawTrails(){
       for(const rec of edgeMemory.values()){
         if(rec.trail.length < 2) continue;
@@ -236,9 +294,10 @@
         const avgAge = rec.trailAge.reduce((s,a)=>s+a,0)/Math.max(1,rec.trailAge.length);
         const s = rec.strength * (0.35 + 0.65*rec.ttl);
 
-        // trails should feel “structural”, but still depthy
-        const alpha = Math.min(0.55, 0.10 + 0.50*avgAge*s);
-        const width = 0.9 + 3.0*avgAge*s;
+        // φ edges: warmer and slightly stronger trails
+        const phi = rec.phiScore || 0;
+        const alpha = Math.min(0.60, 0.10 + 0.52*avgAge*s*(1+0.35*phi));
+        const width = 0.9 + 3.4*avgAge*s*(1+0.30*phi);
 
         ctx.beginPath();
         for(let i=0;i<rec.trail.length;i++){
@@ -246,33 +305,43 @@
           if(i===0) ctx.moveTo(p.x,p.y);
           else ctx.lineTo(p.x,p.y);
         }
-        ctx.strokeStyle = `rgba(255,235,190,${alpha})`;
+
+        // blend toward “gold” when φ-resonant
+        const r = Math.round(235 + 20*phi);
+        const g = Math.round(210 + 25*phi);
+        const b = Math.round(170 - 30*phi);
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
         ctx.lineWidth = width;
         ctx.stroke();
       }
     }
 
     function drawImmediateLinks(active){
-      // Present-time links: depth perspective by distance
       for(const e of active){
         const a=e.a, b=e.b;
 
-        // near => thick/bright ; far => thin/faint
         const width = lerp(P.widthFar, P.widthNear, e.wNear);
         const alpha = lerp(P.alphaFar, P.alphaNear, e.wNear);
 
-        // also modulate by memory strength if already established
         const mem = edgeMemory.get(e.key);
         const m = mem ? (0.35 + 0.65*mem.strength) : 0.55;
-        const alpha2 = Math.min(0.95, alpha * m);
-        const width2 = width * (0.85 + 0.55*m);
 
-        const mp=bentMidpoint(a.x,a.y,b.x,b.y, 110*e.wNear);
+        // φ resonance lifts visibility + persistence feel
+        const phi = mem ? (mem.phiScore||0) : e.phiScore;
+        const alpha2 = Math.min(0.98, alpha * m * (1 + 0.35*phi));
+        const width2 = width * (0.85 + 0.55*m) * (1 + 0.20*phi);
+
+        const mp=bentMidpoint(a.x,a.y,b.x,b.y, (110*e.wNear) * (1+0.25*phi));
 
         ctx.beginPath();
         ctx.moveTo(a.x,a.y);
         ctx.quadraticCurveTo(mp.x, mp.y, b.x, b.y);
-        ctx.strokeStyle = `rgba(255,250,220,${alpha2})`;
+
+        // φ links slightly warmer
+        const r = Math.round(250);
+        const g = Math.round(250 - 25*phi);
+        const bl = Math.round(220 - 80*phi);
+        ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha2})`;
         ctx.lineWidth = width2;
         ctx.stroke();
       }
@@ -281,7 +350,7 @@
     function drawEvents(){
       for(const e of events){
         e.phase += P.phaseSpeed;
-        e.life *= 0.987; // slow decay so relations persist
+        e.life *= 0.987;
 
         const drift = 0.08*e.energy*e.life;
         e.x += Math.cos(e.phase)*drift;
@@ -315,23 +384,18 @@
     }
 
     function render(){
-      // keep traces longer (depth)
-      ctx.fillStyle = `rgba(4,6,10,${P.bgFade})`;
-      ctx.fillRect(0,0,w,h);
-
-      // restore “pulsing background”
+      drawGradientBackground();
       drawPulsingField();
 
-      const active = buildActiveEdges();
+      const { active, phiCount } = buildActiveEdges();
       updateEdgeMemory(active);
 
-      // depth: trails first, then present links, then events
       drawTrails();
       drawImmediateLinks(active);
       drawEvents();
       relinkEdgeRefs();
 
-      hud.innerHTML = `events: ${events.length}<br>links: ${active.length}`;
+      hud.innerHTML = `events: ${events.length}<br>links: ${active.length}<br>phi-links: ${phiCount}`;
 
       t += 0.01;
       requestAnimationFrame(render);
