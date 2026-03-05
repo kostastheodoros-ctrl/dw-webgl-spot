@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="el">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>DW WebGL Spot — BUILD 2026-03-05T00:00:00Z-ANTIFREEZE-01</title>
+  <title>DW Spot — BUILD 2026-03-05T00:00:00Z-GOLD-ENGINE-01</title>
   <style>
     :root{color-scheme:dark}
-    html,body{margin:0;height:100%;background:#05060b;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    html,body{margin:0;height:100%;overflow:hidden;background:#05060b;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
     #c{display:block;width:100vw;height:100vh}
     #hud{
       position:fixed;left:12px;top:12px;z-index:10;
@@ -33,11 +33,10 @@
 (() => {
   "use strict";
 
-  /* ===== BUILD (verifiable) ===== */
-  const BUILD_ID = "2026-03-05T00:00:00Z-ANTIFREEZE-01";
+  const BUILD_ID = "2026-03-05T00:00:00Z-GOLD-ENGINE-01";
   document.getElementById("bid").textContent = BUILD_ID;
 
-  /* ===== Optional: SW purge ===== */
+  // Purge service workers (cache traps)
   (async () => {
     if (!("serviceWorker" in navigator)) return;
     try {
@@ -46,61 +45,57 @@
     } catch {}
   })();
 
-  /* ===== Constants ===== */
+  /* ===== HARD PERFORMANCE GUARANTEES =====
+     - fixed caps (no unbounded growth)
+     - time budgets per frame (no long frames)
+     - archive drawn once to offscreen (no redraw cost)
+     - minimal allocations inside loop
+  */
   const φ = 1.618033988749895;
   const EPS = 0.028;
 
-  // HARD CAPS (prevents “bloating”)
-  const MAX_N = 84;               // nodes cap
-  const MAX_EDGES_DRAW = 420;     // render cap
-  const MAX_TRIPLETS_FRAME = 90;  // φ checks per frame cap
-  const MAX_LOCKS = 24;           // archive layers cap
+  const MAX_N = 80;               // absolute node cap
+  const MAX_EDGES_DRAW = 360;     // render cap
+  const MAX_TRIPLETS = 70;        // φ checks cap per frame
+  const MAX_LOCKS = 20;           // archive layer cap
 
-  // TIME BUDGET (prevents long frames / freeze)
-  const BUDGET_MS_EDGES = 4.0;
-  const BUDGET_MS_TRIPLETS = 3.5;
+  const BUDGET_MS_EDGES = 3.5;
+  const BUDGET_MS_TRIS  = 3.0;
 
-  // 3D-ish depth projection
-  const CAM_Z = 520;
-  const FOV = 520;
-  const Z_MIN = -220, Z_MAX = 360;
+  const CAM_Z = 520, FOV = 520;
+  const Z_MIN = -220, Z_MAX = 340;
 
-  // Dynamics (lightweight)
   const DT_MAX = 0.030;
   const DAMP = 0.985;
   const FLOW = 0.10;
-  const PULL_UP = 14;
-  const PULL_DOWN = 42;
-  const EDGE_RANGE = 140;
-  const REPULSE_R2 = 120*120;
+  const EDGE_RANGE = 135;
+  const CELL = EDGE_RANGE;        // grid cell size
+  const REP_R2 = 120*120;
 
-  // Persistence
-  const FADE_MAIN = 0.10;         // trails
-  const FADE_ARCHIVE = 0.015;     // very slow archive fade
-  const LOCK_STABILITY = 0.55;    // seconds
-  const LOCK_TTL = 22.0;          // seconds
+  const FADE_MAIN = 0.10;
+  const FADE_ARCH = 0.012;
+  const LOCK_STAB = 0.55;
+  const LOCK_TTL  = 22.0;
 
-  const LOCK_COLORS = [
+  const COLORS = [
     "rgba(255,211,110,0.92)",
     "rgba(120,210,255,0.86)",
     "rgba(255,120,210,0.82)",
     "rgba(160,255,140,0.82)",
-    "rgba(220,180,255,0.82)",
-    "rgba(255,160,120,0.82)"
+    "rgba(220,180,255,0.82)"
   ];
 
-  /* ===== Canvas ===== */
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
 
-  // Offscreen archive (critical performance win)
+  // Offscreen archive canvas (layers persist cheaply)
   const aCanvas = document.createElement("canvas");
   const aCtx = aCanvas.getContext("2d", { alpha:true, desynchronized:true });
 
   function resize(){
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    canvas.width = Math.floor(innerWidth * dpr);
-    canvas.height = Math.floor(innerHeight * dpr);
+    canvas.width = Math.floor(innerWidth*dpr);
+    canvas.height = Math.floor(innerHeight*dpr);
     ctx.setTransform(dpr,0,0,dpr,0,0);
 
     aCanvas.width = canvas.width;
@@ -121,76 +116,37 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  const rng = mulberry32(0xA51CE ^ (Date.now() & 0xffffffff));
+  const rng = mulberry32(0xD00D ^ (Date.now() & 0xffffffff));
 
   function project(n){
     const denom = (CAM_Z + n.z);
-    const s = FOV / Math.max(140, denom);
+    const s = FOV / Math.max(150, denom);
     return { x: innerWidth*0.5 + n.x*s, y: innerHeight*0.5 + n.y*s, s };
   }
 
-  /* ===== Spatial hash grid (fast neighbors) ===== */
-  const grid = new Map();
-  const cellSize = EDGE_RANGE;
-  const cellKey = (cx,cy)=> (cx + "|" + cy);
-
-  function rebuildGrid(nodes){
-    grid.clear();
-    for(let i=0;i<nodes.length;i++){
-      const n=nodes[i];
-      const cx=Math.floor(n.x/cellSize), cy=Math.floor(n.y/cellSize);
-      const k=cellKey(cx,cy);
-      let b=grid.get(k);
-      if(!b){ b=[]; grid.set(k,b); }
-      b.push(i);
-    }
-  }
-
-  function forNearby(nodes, i, fn){
-    const n=nodes[i];
-    const cx=Math.floor(n.x/cellSize), cy=Math.floor(n.y/cellSize);
-    for(let dx=-1; dx<=1; dx++){
-      for(let dy=-1; dy<=1; dy++){
-        const b = grid.get(cellKey(cx+dx,cy+dy));
-        if(!b) continue;
-        for(const j of b) if(j!==i) fn(j);
-      }
-    }
-  }
-
-  function dist3(a,b){
-    const dx=a.x-b.x, dy=a.y-b.y, dz=(a.z-b.z)*0.35;
-    return Math.sqrt(dx*dx+dy*dy+dz*dz);
-  }
-
-  /* ===== Nodes ===== */
-  const nodes=[];
-  let nid=0;
-
-  function spawn(x2d,y2d, E=1.0){
-    const nx = (x2d - innerWidth*0.5);
-    const ny = (y2d - innerHeight*0.5);
-    const z = lerp(-60, 240, rng());
-    const inv = (CAM_Z + z) / FOV;
-
+  // Node pool (fixed-size behavior)
+  const nodes = [];
+  let nid = 0;
+  function spawn(x2d,y2d,E=1.0){
+    const nx=(x2d-innerWidth*0.5), ny=(y2d-innerHeight*0.5);
+    const z=lerp(-60, 220, rng());
+    const inv=(CAM_Z+z)/FOV;
     nodes.push({
       id:(nid++),
       x:nx*inv, y:ny*inv, z,
       vx:(rng()-0.5)*22, vy:(rng()-0.5)*22, vz:(rng()-0.5)*10,
-      E:clamp(E,0.7,3.2),
+      E:clamp(E,0.7,3.1),
       life:10 + rng()*10
     });
     while(nodes.length > MAX_N) nodes.shift();
   }
 
-  /* ===== Pointer ===== */
+  // Pointer
   const pointer={x:innerWidth*0.5,y:innerHeight*0.5,down:false,last:0};
-
   function pos(e){
     const r=canvas.getBoundingClientRect();
     return {x:e.clientX-r.left, y:e.clientY-r.top};
   }
-
   canvas.addEventListener("pointerdown",(e)=>{
     canvas.setPointerCapture(e.pointerId);
     pointer.down=true;
@@ -198,136 +154,228 @@
     pointer.last=performance.now();
     spawn(p.x,p.y,2.2);
   });
-
   canvas.addEventListener("pointermove",(e)=>{
     const p=pos(e); pointer.x=p.x; pointer.y=p.y;
     if(pointer.down){
       const now=performance.now();
-      if(now-pointer.last > 90){
+      if(now-pointer.last > 95){
         pointer.last=now;
         spawn(p.x,p.y,1.5);
       }
     }
   });
-
   canvas.addEventListener("pointerup",()=>{pointer.down=false;});
   canvas.addEventListener("pointerleave",()=>{pointer.down=false;});
 
-  /* ===== φ-lock tracking (cheap + stable) ===== */
-  const candidates = new Map(); // key -> {t, ids, last}
-  const locks = []; // {ids, color, ttl}
+  // Spatial grid with array reuse
+  const grid = new Map();       // key->array of indices
+  const bucketPool = [];        // reuse arrays to avoid GC
+  function key(cx,cy){ return cx+"|"+cy; }
+  function gridClear(){
+    for(const [,arr] of grid){ arr.length=0; bucketPool.push(arr); }
+    grid.clear();
+  }
+  function gridBuild(){
+    gridClear();
+    for(let i=0;i<nodes.length;i++){
+      const n=nodes[i];
+      const cx=(n.x/CELL)|0, cy=(n.y/CELL)|0;
+      const k=key(cx,cy);
+      let b=grid.get(k);
+      if(!b){
+        b = bucketPool.pop() || [];
+        b.length=0;
+        grid.set(k,b);
+      }
+      b.push(i);
+    }
+  }
+  function forNearby(i, fn){
+    const n=nodes[i];
+    const cx=(n.x/CELL)|0, cy=(n.y/CELL)|0;
+    for(let dx=-1;dx<=1;dx++){
+      for(let dy=-1;dy<=1;dy++){
+        const b=grid.get(key(cx+dx,cy+dy));
+        if(!b) continue;
+        for(let t=0;t<b.length;t++){
+          const j=b[t];
+          if(j!==i) fn(j);
+        }
+      }
+    }
+  }
+  function dist3(a,b){
+    const dx=a.x-b.x, dy=a.y-b.y, dz=(a.z-b.z)*0.35;
+    return Math.sqrt(dx*dx+dy*dy+dz*dz);
+  }
+
+  // Sparse edges (rebuilt with budget)
+  const edges = []; // {a,b,w}
+  function edgesBuild(){
+    edges.length=0;
+    const t0=performance.now();
+    for(let i=0;i<nodes.length;i++){
+      const A=nodes[i];
+      forNearby(i,(j)=>{
+        if(j<=i) return;
+        if(performance.now()-t0 > BUDGET_MS_EDGES) return;
+        const B=nodes[j];
+        const d=dist3(A,B);
+        if(d < EDGE_RANGE){
+          edges.push({a:i,b:j,w:1-d/EDGE_RANGE});
+        }
+      });
+      if(performance.now()-t0 > BUDGET_MS_EDGES) break;
+    }
+  }
+
+  // φ-locks (stable + archived once)
+  const candidates = new Map(); // key-> {t, ids, last}
+  const locks = [];            // {ids,color,ttl}
 
   function key3(i,j,k){
-    const s=[i,j,k].sort((a,b)=>a-b);
-    return s[0]+"|"+s[1]+"|"+s[2];
+    if(i>j){const t=i;i=j;j=t;}
+    if(j>k){const t=j;j=k;k=t;}
+    if(i>j){const t=i;i=j;j=t;}
+    return i+"|"+j+"|"+k;
   }
-
   function phiOKTrip(i,j,k){
-    const A=nodes[i], B=nodes[j], C=nodes[k];
+    const A=nodes[i],B=nodes[j],C=nodes[k];
     const dAB=dist3(A,B), dBC=dist3(B,C), dCA=dist3(C,A);
-    const arr=[dAB,dBC,dCA].sort((a,b)=>a-b);
-    const d1=arr[0], d2=arr[1], d3=arr[2];
-    if(d1 < 18) return false;
+    let d1=dAB,d2=dBC,d3=dCA;
+    // sort 3 values (branch-minimal)
+    if(d1>d2){const t=d1;d1=d2;d2=t;}
+    if(d2>d3){const t=d2;d2=d3;d3=t;}
+    if(d1>d2){const t=d1;d1=d2;d2=t;}
+    if(d1<18) return false;
     const r1=d3/d2, r2=d2/d1;
-    return (Math.abs(r1-φ) < EPS) || (Math.abs(r2-φ) < EPS);
+    return (Math.abs(r1-φ)<EPS) || (Math.abs(r2-φ)<EPS);
   }
 
-  // Convex hull for archive only WHEN lock is created (not every frame)
-  function convexHull(points){
-    if(points.length < 3) return points.slice();
-    const pts = points.slice().sort((a,b)=> a.x===b.x ? a.y-b.y : a.x-b.x);
-    const cross = (o,a,b)=> (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
-    const lower=[];
-    for(const p of pts){
-      while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
-      lower.push(p);
+  function convexHull(pts){
+    if(pts.length<3) return pts;
+    pts.sort((a,b)=>a.x===b.x? a.y-b.y : a.x-b.x);
+    const cross=(o,a,b)=> (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
+    const lo=[], up=[];
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      while(lo.length>=2 && cross(lo[lo.length-2], lo[lo.length-1], p)<=0) lo.pop();
+      lo.push(p);
     }
-    const upper=[];
     for(let i=pts.length-1;i>=0;i--){
       const p=pts[i];
-      while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
-      upper.push(p);
+      while(up.length>=2 && cross(up[up.length-2], up[up.length-1], p)<=0) up.pop();
+      up.push(p);
     }
-    upper.pop(); lower.pop();
-    return lower.concat(upper);
+    up.pop(); lo.pop();
+    return lo.concat(up);
   }
 
-  function archiveLock(ids, color){
-    // draw once into offscreen archive (persistent depth layer)
-    const pts = ids.map(id => project(nodes[id])).map(p => ({x:p.x,y:p.y}));
+  function archiveOnce(ids, color){
+    const pts = [];
+    for(let t=0;t<ids.length;t++){
+      const pr = project(nodes[ids[t]]);
+      pts.push({x:pr.x,y:pr.y});
+    }
     const hull = convexHull(pts);
-    if(hull.length < 3) return;
+    if(hull.length<3) return;
 
-    aCtx.globalCompositeOperation = "lighter";
+    aCtx.globalCompositeOperation="lighter";
     aCtx.beginPath();
-    aCtx.moveTo(hull[0].x, hull[0].y);
-    for(let i=1;i<hull.length;i++) aCtx.lineTo(hull[i].x, hull[i].y);
+    aCtx.moveTo(hull[0].x,hull[0].y);
+    for(let i=1;i<hull.length;i++) aCtx.lineTo(hull[i].x,hull[i].y);
     aCtx.closePath();
 
-    // fill (volume)
     aCtx.fillStyle = color.replace(/rgba\(([^)]+)\)/, (m,inner)=>{
       const p=inner.split(",").map(s=>s.trim());
       return `rgba(${p[0]},${p[1]},${p[2]},0.06)`;
     });
     aCtx.fill();
 
-    // stroke
-    aCtx.lineWidth = 2.4;
-    aCtx.strokeStyle = color;
+    aCtx.lineWidth=2.4;
+    aCtx.strokeStyle=color;
     aCtx.stroke();
 
-    // gold signature on top
-    aCtx.lineWidth = 2.1;
-    aCtx.strokeStyle = "rgba(255,211,110,0.70)";
+    aCtx.lineWidth=2.1;
+    aCtx.strokeStyle="rgba(255,211,110,0.70)";
     aCtx.stroke();
 
-    aCtx.globalCompositeOperation = "source-over";
+    aCtx.globalCompositeOperation="source-over";
   }
 
-  /* ===== Dynamics + Rendering ===== */
-  let edges = []; // sparse list for draw only
+  function locksTry(dt){
+    const now=performance.now()*0.001;
+    const t0=performance.now();
+    let checked=0;
 
-  function buildEdgesWithBudget(){
-    edges.length = 0;
-    const t0 = performance.now();
-    const N = nodes.length;
+    // adjacency from edges (cheap)
+    const adj = new Map();
+    for(let e=0;e<edges.length;e++){
+      const a=edges[e].a, b=edges[e].b;
+      let A=adj.get(a); if(!A){A=[]; adj.set(a,A);} A.push(b);
+      let B=adj.get(b); if(!B){B=[]; adj.set(b,B);} B.push(a);
+    }
 
-    for(let i=0;i<N;i++){
-      const A=nodes[i];
-      forNearby(nodes, i, (j)=>{
-        if(j <= i) return;
-        // time budget
-        if(performance.now() - t0 > BUDGET_MS_EDGES) return;
+    for(const [i, neigh] of adj){
+      if(neigh.length<2) continue;
+      for(let a=0;a<neigh.length;a++){
+        for(let b=a+1;b<neigh.length;b++){
+          if(checked++ >= MAX_TRIPLETS) return;
+          if(performance.now()-t0 > BUDGET_MS_TRIS) return;
 
-        const B=nodes[j];
-        const d=dist3(A,B);
-        if(d < EDGE_RANGE){
-          const w = 1 - d/EDGE_RANGE;
-          edges.push({a:i,b:j,w});
+          const j=neigh[a], k=neigh[b];
+          if(!phiOKTrip(i,j,k)) continue;
+
+          const kk=key3(i,j,k);
+          let c=candidates.get(kk);
+          if(!c){ c={t:0, ids:[i,j,k].slice().sort((x,y)=>x-y), last:now}; candidates.set(kk,c); }
+          c.t += dt; c.last=now;
+
+          if(c.t >= LOCK_STAB){
+            const ids=c.ids;
+            let exists=false;
+            for(let L=0;L<locks.length;L++){
+              const q=locks[L].ids;
+              if(q[0]===ids[0] && q[1]===ids[1] && q[2]===ids[2]){ exists=true; break; }
+            }
+            if(!exists){
+              const color = COLORS[locks.length % COLORS.length];
+              locks.push({ids:ids.slice(), color, ttl:LOCK_TTL});
+              while(locks.length > MAX_LOCKS) locks.shift();
+              archiveOnce(ids, color); // one-time draw → zero ongoing cost
+            }
+            c.t = 0;
+          }
         }
-      });
-      if(performance.now() - t0 > BUDGET_MS_EDGES) break;
+      }
     }
   }
 
-  function forces(t, dt){
-    // pointer in world (mid depth)
+  function fade(){
+    ctx.fillStyle = `rgba(4,5,10,${FADE_MAIN})`;
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+
+    aCtx.fillStyle = `rgba(4,5,10,${FADE_ARCH})`;
+    aCtx.fillRect(0,0,innerWidth,innerHeight);
+  }
+
+  function forces(t,dt){
     const zMid=80;
     const inv=(CAM_Z+zMid)/FOV;
-    const mx=(pointer.x - innerWidth*0.5)*inv;
-    const my=(pointer.y - innerHeight*0.5)*inv;
+    const mx=(pointer.x-innerWidth*0.5)*inv;
+    const my=(pointer.y-innerHeight*0.5)*inv;
+    const pull = pointer.down ? 42 : 14;
 
-    // flow + pull
-    const pull = pointer.down ? PULL_DOWN : PULL_UP;
-    for(const n of nodes){
-      const ax = Math.sin(n.y*0.010 + t*0.45);
-      const ay = Math.cos(n.x*0.010 - t*0.45);
-      n.vx += ax*FLOW;
-      n.vy += ay*FLOW;
+    for(let i=0;i<nodes.length;i++){
+      const n=nodes[i];
+      // flow
+      n.vx += Math.sin(n.y*0.010 + t*0.45)*FLOW;
+      n.vy += Math.cos(n.x*0.010 - t*0.45)*FLOW;
 
+      // pull
       const dx=mx-n.x, dy=my-n.y;
       const d=Math.sqrt(dx*dx+dy*dy)+0.001;
-      const s = (pull / (1 + d*d*0.06)) * dt;
+      const s=(pull/(1+d*d*0.06))*dt;
       n.vx += (dx/d)*s;
       n.vy += (dy/d)*s;
     }
@@ -335,12 +383,12 @@
     // repulsion (grid)
     for(let i=0;i<nodes.length;i++){
       const A=nodes[i];
-      forNearby(nodes, i, (j)=>{
-        if(j <= i) return;
+      forNearby(i,(j)=>{
+        if(j<=i) return;
         const B=nodes[j];
         const dx=A.x-B.x, dy=A.y-B.y, dz=(A.z-B.z)*0.35;
         const d2=dx*dx+dy*dy+dz*dz;
-        if(d2 < REPULSE_R2){
+        if(d2 < REP_R2){
           const d=Math.sqrt(d2)+0.001;
           const f=(900/(d2+80))*dt;
           const ux=dx/d, uy=dy/d, uz=dz/d;
@@ -351,168 +399,110 @@
     }
   }
 
-  function integrate(dt){
-    for(const n of nodes){
+  function step(dt){
+    for(let i=0;i<nodes.length;i++){
+      const n=nodes[i];
       n.life -= dt;
       n.x += n.vx*dt; n.y += n.vy*dt; n.z += n.vz*dt;
       n.vx *= DAMP; n.vy *= DAMP; n.vz *= DAMP;
 
       // bounds
       const bx=320, by=240;
-      if(n.x < -bx){ n.x=-bx; n.vx*=-0.72; }
-      if(n.x >  bx){ n.x= bx; n.vx*=-0.72; }
-      if(n.y < -by){ n.y=-by; n.vy*=-0.72; }
-      if(n.y >  by){ n.y= by; n.vy*=-0.72; }
-
+      if(n.x<-bx){n.x=-bx; n.vx*=-0.72;}
+      if(n.x> bx){n.x= bx; n.vx*=-0.72;}
+      if(n.y<-by){n.y=-by; n.vy*=-0.72;}
+      if(n.y> by){n.y= by; n.vy*=-0.72;}
       n.z = clamp(n.z, Z_MIN, Z_MAX);
-      if(n.z===Z_MIN || n.z===Z_MAX) n.vz *= -0.55;
+      if(n.z===Z_MIN || n.z===Z_MAX) n.vz*=-0.55;
     }
-
+    // cull
     for(let i=nodes.length-1;i>=0;i--){
-      if(nodes[i].life <= 0 && nodes.length > 24) nodes.splice(i,1);
+      if(nodes[i].life<=0 && nodes.length>22) nodes.splice(i,1);
+    }
+    // lock ttl
+    for(let i=locks.length-1;i>=0;i--){
+      locks[i].ttl -= dt;
+      if(locks[i].ttl<=0) locks.splice(i,1);
+    }
+    // prune stale candidates
+    const now=performance.now()*0.001;
+    for(const [k,v] of candidates){
+      if(now - v.last > 2.5) candidates.delete(k);
     }
   }
 
-  function tryLocksBudget(dt){
-    const now = performance.now()*0.001;
-    const t0 = performance.now();
-    let checked = 0;
-
-    // adjacency from edges (already sparse)
-    const adj = new Map();
-    for(const e of edges){
-      let a=adj.get(e.a); if(!a){a=[]; adj.set(e.a,a);} a.push(e.b);
-      let b=adj.get(e.b); if(!b){b=[]; adj.set(e.b,b);} b.push(e.a);
-    }
-
-    for(const [i, neigh] of adj){
-      if(neigh.length < 2) continue;
-      for(let a=0;a<neigh.length;a++){
-        for(let b=a+1;b<neigh.length;b++){
-          if(checked++ >= MAX_TRIPLETS_FRAME) return;
-          if(performance.now() - t0 > BUDGET_MS_TRIPLETS) return;
-
-          const j=neigh[a], k=neigh[b];
-          if(!phiOKTrip(i,j,k)) continue;
-
-          const kk=key3(i,j,k);
-          let c=candidates.get(kk);
-          if(!c){ c={t:0, ids:[i,j,k].slice().sort((x,y)=>x-y), last:now}; candidates.set(kk,c); }
-          c.t += dt;
-          c.last = now;
-
-          if(c.t >= LOCK_STABILITY){
-            const ids=c.ids;
-            const already = locks.some(L => L.ids[0]===ids[0] && L.ids[1]===ids[1] && L.ids[2]===ids[2]);
-            if(!already){
-              const color = LOCK_COLORS[locks.length % LOCK_COLORS.length];
-              locks.push({ids:ids.slice(), color, ttl:LOCK_TTL});
-              while(locks.length > MAX_LOCKS) locks.shift();
-              archiveLock(ids, color); // draw ONCE into archive
-            }
-            c.t = 0;
-          }
-        }
-      }
-    }
-  }
-
-  function fade(){
-    // main trails
-    ctx.fillStyle = `rgba(4,5,10,${FADE_MAIN})`;
-    ctx.fillRect(0,0,innerWidth,innerHeight);
-
-    // archive slow fade (offscreen)
-    aCtx.fillStyle = `rgba(4,5,10,${FADE_ARCHIVE})`;
-    aCtx.fillRect(0,0,innerWidth,innerHeight);
-  }
-
-  function draw(){
-    // composite archive first (depth layers)
-    ctx.drawImage(aCanvas, 0, 0, innerWidth, innerHeight);
+  function render(){
+    // archive first (depth layers)
+    ctx.drawImage(aCanvas,0,0,innerWidth,innerHeight);
 
     // edges (cap draw)
-    ctx.globalCompositeOperation = "lighter";
-    let drawn=0;
-    for(const e of edges){
-      if(drawn++ > MAX_EDGES_DRAW) break;
-      const A=nodes[e.a], B=nodes[e.b];
+    ctx.globalCompositeOperation="lighter";
+    for(let e=0,drawn=0; e<edges.length && drawn<MAX_EDGES_DRAW; e++,drawn++){
+      const ed=edges[e];
+      const A=nodes[ed.a], B=nodes[ed.b];
       const pa=project(A), pb=project(B);
-      const alpha = clamp(0.03 + 0.18*e.w, 0.03, 0.22);
-      const lw = clamp(0.6 + 2.0*e.w*pa.s, 0.5, 2.2);
-      ctx.lineWidth = lw;
-      ctx.strokeStyle = `rgba(170,210,255,${alpha})`;
+      const alpha = clamp(0.03 + 0.18*ed.w, 0.03, 0.22);
+      const lw = clamp(0.6 + 2.0*ed.w*pa.s, 0.5, 2.2);
+      ctx.lineWidth=lw;
+      ctx.strokeStyle=`rgba(170,210,255,${alpha})`;
       ctx.beginPath();
       ctx.moveTo(pa.x,pa.y);
       ctx.lineTo(pb.x,pb.y);
       ctx.stroke();
     }
-    ctx.globalCompositeOperation = "source-over";
+    ctx.globalCompositeOperation="source-over";
 
     // nodes (depth order)
     const order = nodes.slice().sort((a,b)=>(CAM_Z+b.z)-(CAM_Z+a.z));
-    for(const n of order){
+    for(let i=0;i<order.length;i++){
+      const n=order[i];
       const p=project(n);
       const r=clamp(1.2 + 4.0*p.s*n.E, 1.2, 6.5);
       const a=clamp(0.20 + 0.55*p.s, 0.20, 0.88);
 
       ctx.globalCompositeOperation="lighter";
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,r*2.5,0,Math.PI*2);
-      ctx.fillStyle=`rgba(120,210,255,${0.05*a})`;
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x,p.y,r*2.5,0,Math.PI*2);
+      ctx.fillStyle=`rgba(120,210,255,${0.05*a})`; ctx.fill();
       ctx.globalCompositeOperation="source-over";
 
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(255,255,255,${a})`;
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,255,255,${a})`; ctx.fill();
     }
 
-    // on-canvas stamp
+    // stamp
     ctx.font="600 14px system-ui,-apple-system,Segoe UI,Roboto,Arial";
     ctx.fillStyle="rgba(255,255,255,0.82)";
-    ctx.fillText("DW WebGL Spot", 14, innerHeight-44);
+    ctx.fillText("DW Spot",14,innerHeight-44);
     ctx.fillStyle="rgba(255,211,110,0.92)";
-    ctx.fillText("BUILD " + BUILD_ID, 14, innerHeight-24);
+    ctx.fillText("BUILD "+BUILD_ID,14,innerHeight-24);
   }
 
-  /* ===== Seed (immediate depth) ===== */
-  ctx.fillStyle="#070A10";
-  ctx.fillRect(0,0,innerWidth,innerHeight);
-  for(let i=0;i<24;i++){
+  // Seed (instant depth)
+  ctx.fillStyle="#070A10"; ctx.fillRect(0,0,innerWidth,innerHeight);
+  for(let i=0;i<22;i++){
     spawn(innerWidth*(0.25+rng()*0.5), innerHeight*(0.25+rng()*0.5), 1.0+rng()*1.0);
   }
 
-  /* ===== Loop ===== */
-  let last = performance.now();
-  function frame(now){
-    const t = now*0.001;
-    const dt = clamp((now-last)/1000, 0, DT_MAX);
-    last = now;
+  let last=performance.now();
+  function loop(now){
+    const t=now*0.001;
+    const dt=clamp((now-last)/1000,0,DT_MAX);
+    last=now;
 
     fade();
-
-    rebuildGrid(nodes);
-    buildEdgesWithBudget();
-    forces(t, dt);
-    integrate(dt);
-    tryLocksBudget(dt);
-
-    // decay locks TTL (no redraw cost)
-    for(let i=locks.length-1;i>=0;i--){
-      locks[i].ttl -= dt;
-      if(locks[i].ttl <= 0) locks.splice(i,1);
-    }
-
-    draw();
+    gridBuild();
+    edgesBuild();
+    forces(t,dt);
+    step(dt);
+    locksTry(dt);
+    render();
 
     document.getElementById("stats").textContent =
       `nodes:${nodes.length} • edges:${edges.length} • locks:${locks.length}`;
 
-    requestAnimationFrame(frame);
+    requestAnimationFrame(loop);
   }
-  requestAnimationFrame(frame);
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>
