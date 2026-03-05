@@ -1,568 +1,236 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Design Walker — Museum Field (Generative)</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Design Walker — Generative Field</title>
+
 <style>
-  :root{
-    --bg0:#05060a;
-    --bg1:#0b1117;
-    --ice:rgba(139,233,253,.74);       /* cyan-ice */
-    --ice2:rgba(125,211,252,.20);      /* halo */
-    --amber:rgba(255,209,102,.58);     /* event/constellation */
-    --white:rgba(255,255,255,.62);     /* sparks */
-    --ui:rgba(0,0,0,.34);
-    --uiBorder:rgba(255,255,255,.18);
-  }
-  html,body{margin:0;height:100%;background:var(--bg0);overflow:hidden;}
-  svg{width:100vw;height:100vh;display:block;}
-  .ui{
-    position:fixed;left:12px;top:10px;right:12px;z-index:10;
-    font:13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
-    color:rgba(255,255,255,.88);
-    background:var(--ui);
-    border:1px solid var(--uiBorder);
-    border-radius:12px;
-    padding:10px 12px;
-    backdrop-filter: blur(6px);
-    display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;
-  }
-  .ui b{color:#fff;letter-spacing:.02em}
-  .hint{color:rgba(203,213,225,.95)}
-  .btn{
-    cursor:pointer;background:#0b0f14;color:#eaeaea;
-    border:1px solid rgba(255,255,255,.18);
-    border-radius:10px;padding:8px 10px;font:13px system-ui;
-  }
-  .btn[aria-pressed="true"]{border-color:rgba(125,211,252,.55);box-shadow:0 0 0 2px rgba(125,211,252,.15) inset;}
-  .chip{
-    display:inline-flex;align-items:center;gap:6px;
-    padding:6px 8px;border-radius:999px;
-    border:1px solid rgba(255,255,255,.16);
-    background:rgba(11,15,20,.65);
-    color:rgba(255,255,255,.85);
-    font:12px system-ui;
-    white-space:nowrap;
-  }
-  input[type="range"]{accent-color:#7dd3fc}
+html,body{
+margin:0;
+height:100%;
+background:#05060a;
+overflow:hidden;
+font-family:system-ui;
+}
+
+svg{
+width:100vw;
+height:100vh;
+display:block;
+}
+
+.ui{
+position:fixed;
+top:10px;
+left:10px;
+right:10px;
+z-index:10;
+color:white;
+font-size:13px;
+background:rgba(0,0,0,.35);
+padding:10px;
+border-radius:10px;
+backdrop-filter:blur(6px);
+display:flex;
+justify-content:space-between;
+}
+
+input[type=range]{accent-color:#7dd3fc;}
 </style>
 </head>
+
 <body>
 
 <div class="ui">
-  <div>
-    <b>DESIGN AS EVENT — MUSEUM FIELD</b><br>
-    <span class="hint">Move: reconfigure • Click: constellation event • 1–4: regimes • Space: freeze • R: reseed • Mic: optional</span>
-  </div>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-    <span class="chip">Density <input id="density" type="range" min="0" max="100" value="70"></span>
-    <span class="chip">Glow <input id="glow" type="range" min="0" max="100" value="78"></span>
-    <span class="chip">Event <input id="event" type="range" min="0" max="100" value="66"></span>
-    <button class="btn" id="mic" aria-pressed="false" title="Optional: audio-reactive events (microphone)">Mic</button>
-    <button class="btn" id="rand">Reseed</button>
-    <button class="btn" id="reset">Reset</button>
-  </div>
+<div>
+<b>DESIGN AS EVENT — FIELD</b><br>
+Move = reconfigure • Click = constellation event
 </div>
 
-<svg id="svg" viewBox="0 0 900 520" aria-label="Museum-level generative field">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="38%" r="85%">
-      <stop offset="0%" stop-color="rgba(11,17,23,1)"/>
-      <stop offset="55%" stop-color="rgba(5,6,10,1)"/>
-      <stop offset="100%" stop-color="rgba(5,6,10,1)"/>
-    </radialGradient>
+<div>
+Density <input id="density" type="range" min="0" max="100" value="70">
+Glow <input id="glow" type="range" min="0" max="100" value="70">
+</div>
+</div>
 
-    <filter id="glowFx" x="-45%" y="-45%" width="200%" height="200%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="b1"/>
-      <feColorMatrix in="b1" type="matrix"
-        values="1 0 0 0 0
-                0 1 0 0 0
-                0 0 1 0 0
-                0 0 0 0.72 0" result="b2"/>
-      <feMerge>
-        <feMergeNode in="b2"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
+<svg viewBox="0 0 900 520" id="svg">
 
-    <filter id="softFx" x="-35%" y="-35%" width="170%" height="170%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="s1"/>
-      <feMerge>
-        <feMergeNode in="s1"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
+<defs>
 
-    <radialGradient id="vig" cx="50%" cy="50%" r="70%">
-      <stop offset="60%" stop-color="rgba(0,0,0,0)"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,.46)"/>
-    </radialGradient>
-  </defs>
+<radialGradient id="bg">
+<stop offset="0%" stop-color="#0b1117"/>
+<stop offset="100%" stop-color="#05060a"/>
+</radialGradient>
 
-  <rect x="0" y="0" width="900" height="520" fill="url(#bg)"></rect>
+<filter id="glow">
+<feGaussianBlur stdDeviation="2"/>
+</filter>
 
-  <g id="halo" fill="none" stroke="rgba(125,211,252,.18)" stroke-width="1" filter="url(#glowFx)"></g>
-  <g id="field" fill="none" stroke="rgba(170,235,255,.62)" stroke-width="1.15" stroke-linecap="round" filter="url(#glowFx)"></g>
+</defs>
 
-  <!-- Temporal threadlines (trace) -->
-  <g id="threads" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1" stroke-linecap="round"></g>
+<rect width="900" height="520" fill="url(#bg)"/>
 
-  <!-- Constellations -->
-  <g id="constPoints" fill="rgba(255,209,102,.70)" filter="url(#softFx)"></g>
-  <g id="constLines" fill="none" stroke="rgba(255,209,102,.32)" stroke-width="1" stroke-linecap="round" filter="url(#softFx)"></g>
+<g id="field" stroke="#9ae6ff" fill="none" stroke-width="1" filter="url(#glow)"></g>
+<g id="threads" stroke="rgba(255,255,255,.12)" fill="none"></g>
 
-  <!-- Sparks + cut -->
-  <g id="sparks" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1" stroke-linecap="round"></g>
+<g id="constellations"></g>
 
-  <rect x="0" y="0" width="900" height="520" fill="url(#vig)"></rect>
-  <text id="status" x="18" y="500" fill="rgba(255,255,255,.70)" style="font:12px system-ui">mode 1 • live</text>
 </svg>
 
 <script>
-(() => {
-  const svg = document.getElementById('svg');
-  const halo = document.getElementById('halo');
-  const field = document.getElementById('field');
-  const threads = document.getElementById('threads');
-  const constPoints = document.getElementById('constPoints');
-  const constLines = document.getElementById('constLines');
-  const sparks = document.getElementById('sparks');
-  const statusEl = document.getElementById('status');
-
-  const sDensity = document.getElementById('density');
-  const sGlow = document.getElementById('glow');
-  const sEvent = document.getElementById('event');
-  const micBtn = document.getElementById('mic');
-  const btnRand = document.getElementById('rand');
-  const btnReset = document.getElementById('reset');
-
-  const glowFx = document.getElementById('glowFx');
-  const feBlur = glowFx.querySelector('feGaussianBlur');
-
-  const W=900,H=520,cx=W/2,cy=H/2;
-
-  let mode=1, live=true;
-  let seed=(Math.random()*1e9)|0;
-  let t=0, mx=cx, my=cy;
-
-  // Event state
-  let burst=0, burstPhase=0, sparkTTL=0;
-
-  // Constellations (persistent for a while)
-  const MAX_EVENTS = 9;
-  const events = []; // {x,y,ttl,pts:[{x,y}], edges:[[i,j]]}
-
-  // Audio (optional)
-  let audioOn=false;
-  let audioLevel=0, audioTarget=0;
-  let analyser=null, dataArr=null, audioCtx=null, micStream=null, audioRaf=0;
-
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-
-  // deterministic pseudo-random
-  function rand01(i){
-    let x = (seed ^ (i*0x9e3779b1)) >>> 0;
-    x ^= x << 13; x >>>= 0;
-    x ^= x >> 17; x >>>= 0;
-    x ^= x << 5;  x >>>= 0;
-    return (x % 100000) / 100000;
-  }
-
-  function setStatus(extra=''){
-    statusEl.textContent = `mode ${mode} • ${live?'live':'frozen'} • seed ${seed}${extra}`;
-  }
-
-  function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
-
-  function linePath(points){
-    let d = `M ${points[0][0].toFixed(2)} ${points[0][1].toFixed(2)}`;
-    for(let i=1;i<points.length;i++) d += ` L ${points[i][0].toFixed(2)} ${points[i][1].toFixed(2)}`;
-    return d;
-  }
-
-  function svgPointFromEvent(e){
-    const rect = svg.getBoundingClientRect();
-    const x = ((e.clientX - rect.left)/rect.width)*W;
-    const y = ((e.clientY - rect.top)/rect.height)*H;
-    return {x: clamp(x,0,W), y: clamp(y,0,H)};
-  }
-
-  function updateGlow(){
-    const gv=(+sGlow.value)/100;
-    feBlur.setAttribute('stdDeviation', (1.1 + 4.2*gv).toFixed(2));
-  }
-  sGlow.addEventListener('input', updateGlow);
-  updateGlow();
-
-  function strokeByMode(){
-    // regimes affect chroma + stability (institutional vs event)
-    return (mode===1) ? 'rgba(170,235,255,.62)'
-         : (mode===2) ? 'rgba(139,233,253,.66)'
-         : (mode===3) ? 'rgba(255,209,102,.52)'
-         : 'rgba(170,255,210,.56)';
-  }
-
-  function stopMic(){
-    audioOn=false; audioLevel=0; audioTarget=0;
-    if(audioRaf) cancelAnimationFrame(audioRaf);
-    audioRaf=0;
-    if(micStream){ micStream.getTracks().forEach(tr=>tr.stop()); micStream=null; }
-    if(audioCtx){ try{ audioCtx.close(); }catch(_){ } audioCtx=null; }
-    analyser=null; dataArr=null;
-    micBtn.textContent='Mic';
-    micBtn.setAttribute('aria-pressed','false');
-    setStatus('');
-  }
-
-  async function startMic(){
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      setStatus(' • mic unsupported'); return;
-    }
-    try{
-      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = audioCtx.createMediaStreamSource(micStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 1024;
-      dataArr = new Uint8Array(analyser.fftSize);
-      src.connect(analyser);
-
-      audioOn=true;
-      micBtn.textContent='Mic on';
-      micBtn.setAttribute('aria-pressed','true');
-      setStatus(' • mic on');
-
-      const tick=()=>{
-        if(!audioOn || !analyser) return;
-        analyser.getByteTimeDomainData(dataArr);
-        let sum=0;
-        for(let i=0;i<dataArr.length;i++){
-          const v=(dataArr[i]-128)/128;
-          sum += v*v;
-        }
-        const rms=Math.sqrt(sum/dataArr.length);
-        audioTarget=clamp(rms*2.6,0,1);
-        audioLevel=audioLevel*0.86 + audioTarget*0.14;
-        audioRaf=requestAnimationFrame(tick);
-      };
-      tick();
-    } catch(e){
-      stopMic();
-      setStatus(' • mic blocked');
-    }
-  }
-
-  micBtn.addEventListener('click', async ()=>{
-    if(audioOn){ stopMic(); return; }
-    micBtn.textContent='Mic…';
-    await startMic();
-  });
-
-  svg.addEventListener('mousemove', (e)=>{
-    const p=svgPointFromEvent(e);
-    mx=p.x; my=p.y;
-  });
-
-  function spawnConstellation(x,y,energy){
-    // energy 0..1
-    const n = Math.round(7 + 9*energy); // 7..16
-    const radius = 55 + 110*energy;
-
-    const pts=[];
-    for(let i=0;i<n;i++){
-      const a = (Math.PI*2)*(i/n) + (rand01(i*97 + (seed&999))*0.9);
-      const r = radius*(0.35 + 0.65*rand01(i*131 + (seed>>3)));
-      const px = clamp(x + r*Math.cos(a), 16, W-16);
-      const py = clamp(y + r*Math.sin(a), 16, H-16);
-      pts.push({x:px,y:py});
-    }
-
-    // Build edges via nearest-neighbors (clean constellation)
-    const edges=[];
-    for(let i=0;i<pts.length;i++){
-      // find 2 nearest
-      let a=-1,b=-1,da=1e9,db=1e9;
-      for(let j=0;j<pts.length;j++){
-        if(i===j) continue;
-        const dx=pts[i].x-pts[j].x;
-        const dy=pts[i].y-pts[j].y;
-        const d=dx*dx+dy*dy;
-        if(d<da){ db=da; b=a; da=d; a=j; }
-        else if(d<db){ db=d; b=j; }
-      }
-      if(a>=0) edges.push([i,a]);
-      if(b>=0 && rand01(i*17 + seed)%1>0.35) edges.push([i,b]); // not too dense
-    }
-
-    events.unshift({x,y,ttl:1.0,pts,edges});
-    while(events.length>MAX_EVENTS) events.pop();
-  }
-
-  svg.addEventListener('click', ()=>{
-    burst=Math.max(burst,1);
-    sparkTTL=Math.max(sparkTTL,1);
-    const ev=(+sEvent.value)/100;
-    const energy=clamp(0.35 + 0.75*ev + 0.35*(audioOn?audioLevel:0), 0, 1);
-    spawnConstellation(mx,my,energy);
-    if(!live){ live=true; setStatus(audioOn?' • mic on':'' ); requestAnimationFrame(render); }
-  });
-
-  window.addEventListener('keydown',(e)=>{
-    if(e.key===' '){
-      live=!live;
-      setStatus(audioOn?' • mic on':'' );
-      if(live) requestAnimationFrame(render);
-      e.preventDefault();
-    }
-    if(e.key==='r' || e.key==='R'){
-      seed=(Math.random()*1e9)|0;
-      burst=Math.max(burst,1);
-      sparkTTL=Math.max(sparkTTL,1);
-      events.length=0;
-      setStatus(audioOn?' • mic on':'' );
-      if(!live){ live=true; requestAnimationFrame(render); }
-    }
-    if(e.key==='1'){ mode=1; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-    if(e.key==='2'){ mode=2; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-    if(e.key==='3'){ mode=3; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-    if(e.key==='4'){ mode=4; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-  });
-
-  btnRand.addEventListener('click', ()=>{
-    seed=(Math.random()*1e9)|0;
-    burst=Math.max(burst,1);
-    sparkTTL=Math.max(sparkTTL,1);
-    events.length=0;
-    setStatus(audioOn?' • mic on':'' );
-    if(!live){ live=true; requestAnimationFrame(render); }
-  });
-
-  btnReset.addEventListener('click', ()=>{
-    mx=cx; my=cy; t=0;
-    burst=Math.max(burst,1);
-    sparkTTL=Math.max(sparkTTL,1);
-    events.length=0;
-    setStatus(audioOn?' • mic on':'' );
-    if(!live){ live=true; requestAnimationFrame(render); }
-  });
-
-  function render(){
-    clear(halo); clear(field); clear(threads); clear(constPoints); clear(constLines); clear(sparks);
-
-    const dens=(+sDensity.value)/100;
-    const gv=(+sGlow.value)/100;
-    const ev=(+sEvent.value)/100;
-
-    const ux=(mx/W)*2 - 1;
-    const uy=(my/H)*2 - 1;
-    const pull=Math.sqrt(ux*ux + uy*uy);
-    const k=clamp(pull,0,1);
-
-    // pulse (mic or subtle auto-beat so it never dies)
-    const autoBeat=0.45 + 0.55*Math.max(0, Math.sin(t*1.62));
-    const pulse=clamp(audioOn ? audioLevel : (0.10*autoBeat), 0, 1);
-
-    const eventAmp = clamp(0.20 + 0.95*ev + 0.55*pulse, 0, 1);
-
-    field.setAttribute('stroke', strokeByMode());
-    field.setAttribute('stroke-width', (1.0 + 0.95*dens + 0.18*pulse).toFixed(2));
-
-    // budgets (stable)
-    const rings=Math.round(22 + 18*dens + (mode===4?8:0));
-    const segs=Math.round(150 + 155*dens + (mode===4?60:0));
-    const threadCount=Math.round(10 + 24*dens);
-    const threadSteps=Math.round(24 + 22*dens);
-
-    const baseR=74 + 205*(0.52 + 0.48*Math.sin(t*0.92));
-    const tilt=(0.16 + 0.46*k) * (0.62 + 0.60*dens);
-
-    const regimeWarp =
-      (mode===1) ? 0.72 :
-      (mode===2) ? 1.05 :
-      (mode===3) ? 1.25 :
-                  1.55;
-
-    const twist=(0.22 + 1.40*k) * (0.55 + 0.95*dens) * regimeWarp + (1.70*burst*eventAmp);
-
-    // depth halo
-    const haloEvery=Math.max(2, Math.round(7 - 5*gv));
-    for(let r=0;r<rings;r+=haloEvery){
-      const rr=baseR + r*9.2;
-      const pts=[];
-      for(let i=0;i<=segs;i++){
-        const a=(i/segs)*Math.PI*2;
-        const wob=0.05*Math.sin(a*5 + t*1.08 + r*0.22) + 0.03*Math.cos(a*3 - t*0.88);
-        let x=cx + rr*Math.cos(a);
-        let y=cy + rr*Math.sin(a);
-        y = cy + (y-cy)*(1 - tilt*((x-cx)/(rr+1))**2);
-        x += wob*rr*(0.52 + 0.28*pulse);
-        y += wob*rr*(0.34 + 0.18*pulse);
-        pts.push([x,y]);
-      }
-      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d', linePath(pts));
-      p.setAttribute('opacity', (0.08 + 0.12*(r/rings) + 0.22*gv + 0.12*pulse).toFixed(3));
-      p.setAttribute('stroke', 'rgba(125,211,252,.18)');
-      p.setAttribute('stroke-width', (0.9 + 0.7*gv + 0.55*pulse).toFixed(2));
-      halo.appendChild(p);
-    }
-
-    // main morphogenetic rings
-    const px=ux*136, py=uy*136;
-
-    for(let r=0;r<rings;r++){
-      const rr=baseR + r*9.2;
-      const pts=[];
-      for(let i=0;i<=segs;i++){
-        const a=(i/segs)*Math.PI*2;
-        const n1=rand01(r*1000 + i*7);
-        const n2=rand01(r*2000 + i*11);
-
-        const sA=Math.sin(a*3 + t*1.22 + r*0.12);
-        const cA=Math.cos(a*2 - t*1.02 + r*0.10);
-        const micro=(n1-0.5)*2;
-
-        const dr = rr*(0.090*regimeWarp)*(micro + 0.62*sA + 0.40*cA) * twist;
-
-        let x=cx + (rr + dr)*Math.cos(a);
-        let y=cy + (rr + dr)*Math.sin(a);
-
-        const dx=(x-cx)/(rr+1);
-        y = cy + (y-cy) * (1 - tilt*dx*dx);
-
-        x += px*(0.16 + 0.84*(r/rings))*(0.20 + 0.80*n2)*(0.40 + 0.60*k);
-        y += py*(0.16 + 0.84*(r/rings))*(0.20 + 0.80*n1)*(0.40 + 0.60*k);
-
-        const shock = burst * (170 + 40*pulse) * Math.sin(a*4 + r*0.25 + burstPhase);
-        x += shock*0.06*(r/rings)*eventAmp;
-        y += shock*0.06*(r/rings)*eventAmp;
-
-        pts.push([x,y]);
-      }
-
-      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d', linePath(pts));
-      p.setAttribute('opacity', (0.10 + 0.92*(r/rings)).toFixed(3));
-      p.setAttribute('stroke-width', ( (1.0 + 0.95*dens) * (0.84 + 0.58*(r/rings)) * (1 + 0.20*pulse) ).toFixed(2));
-      field.appendChild(p);
-    }
-
-    // temporal threadlines: directional “trace”
-    for(let j=0;j<threadCount;j++){
-      let x=cx + (rand01(90000+j*31)-0.5)*W*0.55;
-      let y=cy + (rand01(91000+j*37)-0.5)*H*0.55;
-
-      const pts=[];
-      for(let s=0;s<threadSteps;s++){
-        const nx=(x/W)*2 - 1;
-        const ny=(y/H)*2 - 1;
-        const ang=Math.atan2(ny,nx);
-        const rr=Math.sqrt(nx*nx+ny*ny);
-
-        const swirl=(mode===1?0.55:mode===2?0.85:mode===3?1.05:1.25);
-        const drift=(mode===1?0.30:mode===2?0.50:mode===3?0.60:0.75);
-
-        const vx = -Math.sin(ang*swirl + t*0.8) * (0.65 + 0.35*Math.cos(rr*3.0 + t));
-        const vy =  Math.cos(ang*swirl - t*0.7) * (0.65 + 0.35*Math.sin(rr*2.6 - t));
-
-        const mxn=ux*0.9, myn=uy*0.9;
-        const pullx=(mxn - nx), pully=(myn - ny);
-
-        const stepSize=10 + 10*dens;
-        x += (vx*drift + pullx*0.25*k)*stepSize;
-        y += (vy*drift + pully*0.25*k)*stepSize;
-
-        x=clamp(x,10,W-10);
-        y=clamp(y,10,H-10);
-
-        const dx=(x-cx)/W;
-        const yy=cy + (y-cy) * (1 - (0.08 + 0.22*k)*dx*dx);
-        pts.push([x,yy]);
-      }
-
-      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d', linePath(pts));
-      p.setAttribute('opacity', (0.06 + 0.12*dens + 0.07*pulse).toFixed(3));
-      threads.appendChild(p);
-    }
-
-    // Constellations: draw stored events (museum “meaning layer”)
-    for(const evObj of events){
-      // decay
-      evObj.ttl = Math.max(0, evObj.ttl - 0.0065*(0.65 + 0.7*eventAmp));
-      const a = evObj.ttl;
-
-      // points
-      for(const pt of evObj.pts){
-        const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
-        c.setAttribute('cx', pt.x.toFixed(1));
-        c.setAttribute('cy', pt.y.toFixed(1));
-        c.setAttribute('r', (1.6 + 2.2*(1-a) + 1.4*(pulse+burst)).toFixed(2));
-        c.setAttribute('fill', `rgba(255,209,102,${(0.18 + 0.55*a).toFixed(3)})`);
-        constPoints.appendChild(c);
-      }
-
-      // edges
-      for(const [i,j] of evObj.edges){
-        const p1=evObj.pts[i], p2=evObj.pts[j];
-        const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-        p.setAttribute('d', `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`);
-        p.setAttribute('stroke', `rgba(255,209,102,${(0.06 + 0.30*a).toFixed(3)})`);
-        p.setAttribute('stroke-width', (0.9 + 0.8*(pulse+burst)).toFixed(2));
-        constLines.appendChild(p);
-      }
-    }
-    // prune dead
-    for(let i=events.length-1;i>=0;i--) if(events[i].ttl<=0) events.splice(i,1);
-
-    // Event cut + sparks
-    const cutY = cy + uy*150;
-    const cut = document.createElementNS('http://www.w3.org/2000/svg','path');
-    cut.setAttribute('d', `M 40 ${cutY.toFixed(1)} L 860 ${(cutY + uy*24).toFixed(1)}`);
-    cut.setAttribute('stroke', `rgba(255,255,255,${(0.16 + 0.22*burst + 0.18*pulse).toFixed(3)})`);
-    cut.setAttribute('stroke-width', (1 + 0.75*dens + 1.05*pulse).toFixed(2));
-    sparks.appendChild(cut);
-
-    if(sparkTTL>0 || burst>0){
-      const count = Math.round(14 + 30*dens + 22*(pulse+burst));
-      for(let i=0;i<count;i++){
-        const ang=(Math.PI*2)*(i/count) + 0.55*Math.sin(t*1.4+i);
-        const len=(22 + 54*rand01(i*33))*(0.55 + 0.95*dens + 0.95*(pulse+burst));
-        const r0=120 + 250*rand01(i*71);
-        const x1=cx + r0*Math.cos(ang);
-        const y1=cy + r0*Math.sin(ang);
-        const x2=x1 + len*Math.cos(ang);
-        const y2=y1 + len*Math.sin(ang);
-
-        const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-        p.setAttribute('d', `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`);
-        p.setAttribute('opacity', (0.05 + 0.55*clamp(sparkTTL + burst,0,1)).toFixed(3));
-        sparks.appendChild(p);
-      }
-      sparkTTL=Math.max(0, sparkTTL - 0.028);
-    }
-
-    // decay + phase
-    burst=Math.max(0, burst - 0.016);
-    burstPhase += 0.085*burst;
-
-    // subtle mic-driven constellation spawning (only when mic ON)
-    if(audioOn && audioLevel>0.55 && rand01((t*1000)|0) > 0.975){
-      const energy=clamp(0.25 + 0.9*(audioLevel), 0, 1);
-      spawnConstellation(mx,my,energy);
-    }
-
-    if(live){
-      t += 0.017;
-      requestAnimationFrame(render);
-    }
-  }
-
-  // init
-  setStatus('');
-  requestAnimationFrame(render);
-})();
+
+const svg=document.getElementById("svg")
+const field=document.getElementById("field")
+const threads=document.getElementById("threads")
+const constellations=document.getElementById("constellations")
+
+const density=document.getElementById("density")
+
+let mx=450
+let my=260
+
+svg.addEventListener("mousemove",e=>{
+
+const r=svg.getBoundingClientRect()
+
+mx=(e.clientX-r.left)/r.width*900
+my=(e.clientY-r.top)/r.height*520
+
+})
+
+let events=[]
+
+svg.addEventListener("click",()=>{
+
+spawnEvent(mx,my)
+
+})
+
+function spawnEvent(x,y){
+
+const points=[]
+
+for(let i=0;i<8+Math.random()*10;i++){
+
+const a=Math.random()*Math.PI*2
+const r=40+Math.random()*80
+
+points.push({
+x:x+r*Math.cos(a),
+y:y+r*Math.sin(a)
+})
+
+}
+
+events.push({
+pts:points,
+life:1
+})
+
+}
+
+function line(p){
+
+let d=`M ${p[0].x} ${p[0].y}`
+
+for(let i=1;i<p.length;i++)
+d+=` L ${p[i].x} ${p[i].y}`
+
+return d
+
+}
+
+let t=0
+
+function render(){
+
+field.innerHTML=""
+threads.innerHTML=""
+constellations.innerHTML=""
+
+const rings=25+density.value*0.3
+
+for(let r=0;r<rings;r++){
+
+const pts=[]
+const radius=80+r*9
+
+for(let i=0;i<180;i++){
+
+const a=i/180*Math.PI*2
+
+let x=450+(radius*Math.cos(a))
+let y=260+(radius*Math.sin(a))
+
+x+=(mx-450)*0.15
+y+=(my-260)*0.15
+
+x+=Math.sin(a*3+t+r*.1)*radius*.08
+y+=Math.cos(a*4+t+r*.1)*radius*.08
+
+pts.push({x,y})
+
+}
+
+const path=document.createElementNS("http://www.w3.org/2000/svg","path")
+
+path.setAttribute("d",line(pts))
+path.setAttribute("opacity",0.2+r/rings)
+
+field.appendChild(path)
+
+}
+
+for(let e of events){
+
+e.life*=0.98
+
+for(let p of e.pts){
+
+const c=document.createElementNS("http://www.w3.org/2000/svg","circle")
+
+c.setAttribute("cx",p.x)
+c.setAttribute("cy",p.y)
+c.setAttribute("r",2)
+c.setAttribute("fill","rgba(255,209,102,"+e.life+")")
+
+constellations.appendChild(c)
+
+}
+
+if(e.life>0.05){
+
+for(let i=0;i<e.pts.length-1;i++){
+
+const p=document.createElementNS("http://www.w3.org/2000/svg","line")
+
+p.setAttribute("x1",e.pts[i].x)
+p.setAttribute("y1",e.pts[i].y)
+p.setAttribute("x2",e.pts[i+1].x)
+p.setAttribute("y2",e.pts[i+1].y)
+
+p.setAttribute("stroke","rgba(255,209,102,"+e.life*.4+")")
+
+constellations.appendChild(p)
+
+}
+
+}
+
+}
+
+events=events.filter(e=>e.life>0.05)
+
+t+=0.016
+
+requestAnimationFrame(render)
+
+}
+
+render()
+
 </script>
+
 </body>
 </html>
