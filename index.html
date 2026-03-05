@@ -3,107 +3,217 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>DW — WebGL Self-Test</title>
+  <title>Design Walker — Interactive Field (No WebGL)</title>
   <style>
-    html,body{margin:0;height:100%;background:#05060a;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
-    #overlay{
-      position:fixed;left:12px;top:10px;right:12px;
-      color:rgba(255,255,255,.85);font-size:13px;line-height:1.45;
-      background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);
-      border-radius:10px;padding:10px 12px;backdrop-filter: blur(6px);
-      z-index:10;
+    html,body{margin:0;height:100%;background:#05060a;overflow:hidden;}
+    #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+    svg{width:100vw;height:100vh;display:block;}
+    .ui{
+      position:fixed;left:12px;top:10px;right:12px;z-index:10;
+      font:13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      color:rgba(255,255,255,.86);
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:12px;
+      padding:10px 12px;
+      backdrop-filter: blur(6px);
+      display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;
     }
-    #overlay b{color:#fff;}
-    #overlay code{color:#7dd3fc;}
-    canvas{display:block;}
+    .ui b{color:#fff}
+    .btn{
+      cursor:pointer;
+      background:#0b0f14;color:#eaeaea;
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:10px;
+      padding:8px 10px;
+      font:13px system-ui;
+    }
+    .hint{color:rgba(203,213,225,.9)}
   </style>
 </head>
 <body>
-  <div id="overlay">
-    <b>DW WebGL Self-Test</b><br>
-    Status: <span id="status">checking…</span><br>
-    If you see a rotating cube, WebGL works. If not, WebGL is blocked/disabled.<br>
-    URL: <code id="url"></code>
+  <div class="ui">
+    <div>
+      <b>Design as Event — Interactive Field</b><br>
+      <span class="hint">Move: reconfigure • Click: burst • Keys 1–4: modes • Space: freeze</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn" id="rand">Reseed</button>
+      <button class="btn" id="reset">Reset</button>
+    </div>
   </div>
 
-  <!-- three.js (minimal, reliable WebGL test) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script>
-    document.getElementById('url').textContent = location.href;
+  <div id="wrap">
+    <svg id="svg" viewBox="0 0 900 520" aria-label="Interactive field">
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+          <stop offset="0%" stop-color="rgba(125,211,252,.12)"/>
+          <stop offset="55%" stop-color="rgba(5,6,10,1)"/>
+          <stop offset="100%" stop-color="rgba(5,6,10,1)"/>
+        </radialGradient>
+      </defs>
+      <rect x="0" y="0" width="900" height="520" fill="url(#bg)"></rect>
+      <g id="g" fill="none" stroke="rgba(170,235,255,.58)" stroke-width="1.1" stroke-linecap="round"></g>
+      <text id="status" x="18" y="500" fill="rgba(255,255,255,.65)" style="font:12px system-ui">mode 1 • live</text>
+    </svg>
+  </div>
 
-    function webglSupport(){
-      try{
-        const c=document.createElement('canvas');
-        const gl=c.getContext('webgl') || c.getContext('experimental-webgl');
-        return !!gl;
-      }catch(e){ return false; }
-    }
+<script>
+(() => {
+  const svg = document.getElementById('svg');
+  const g = document.getElementById('g');
+  const statusEl = document.getElementById('status');
+  const btnRand = document.getElementById('rand');
+  const btnReset = document.getElementById('reset');
 
-    const statusEl=document.getElementById('status');
+  const W=900,H=520,cx=W/2,cy=H/2;
 
-    if(!webglSupport()){
-      statusEl.innerHTML = '<b style="color:#ff9aa2">WebGL NOT available</b> — browser/GPU setting blocks it.';
-      // Add a visible 2D fallback so we know JS runs
-      const c=document.createElement('canvas');
-      c.width=window.innerWidth; c.height=window.innerHeight;
-      document.body.appendChild(c);
-      const ctx=c.getContext('2d');
-      ctx.fillStyle='#05060a'; ctx.fillRect(0,0,c.width,c.height);
-      ctx.fillStyle='rgba(125,211,252,.95)';
-      ctx.font='16px system-ui';
-      ctx.fillText('2D OK — WebGL blocked/disabled', 20, 90);
-      ctx.strokeStyle='rgba(255,255,255,.25)';
-      ctx.strokeRect(18,110,320,50);
-      ctx.fillStyle='rgba(255,255,255,.8)';
-      ctx.fillText('Fix: enable hardware acceleration / WebGL', 28, 142);
-    } else {
-      statusEl.innerHTML = '<b style="color:#b7ffb7">WebGL available</b> — rendering…';
+  let mode=1, live=true, seed=(Math.random()*1e9)|0;
+  let t=0, mx=cx, my=cy, burst=0;
 
-      const renderer = new THREE.WebGLRenderer({antialias:true});
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-      renderer.setClearColor(0x05060a, 1);
-      document.body.appendChild(renderer.domElement);
+  function rand01(i){
+    let x = (seed ^ (i*0x9e3779b1)) >>> 0;
+    x ^= x << 13; x >>>= 0;
+    x ^= x >> 17; x >>>= 0;
+    x ^= x << 5;  x >>>= 0;
+    return (x % 100000) / 100000;
+  }
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 2000);
-      camera.position.set(0, 0, 6);
+  function setStatus(){
+    statusEl.textContent = `mode ${mode} • ${live?'live':'frozen'} • seed ${seed}`;
+  }
+  function clearG(){ while(g.firstChild) g.removeChild(g.firstChild); }
 
-      const lightA = new THREE.AmbientLight(0xffffff, 0.35);
-      scene.add(lightA);
-      const lightD = new THREE.DirectionalLight(0xffffff, 0.9);
-      lightD.position.set(2, 3, 4);
-      scene.add(lightD);
+  function linePath(points){
+    let d = `M ${points[0][0].toFixed(2)} ${points[0][1].toFixed(2)}`;
+    for(let i=1;i<points.length;i++) d += ` L ${points[i][0].toFixed(2)} ${points[i][1].toFixed(2)}`;
+    return d;
+  }
 
-      const geo = new THREE.BoxGeometry(1.6, 1.6, 1.6);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x7dd3fc,
-        metalness: 0.2,
-        roughness: 0.35
-      });
-      const cube = new THREE.Mesh(geo, mat);
-      scene.add(cube);
+  function strokeByMode(){
+    return (mode===1) ? 'rgba(170,235,255,.60)'
+         : (mode===2) ? 'rgba(255,190,235,.55)'
+         : (mode===3) ? 'rgba(255,240,190,.45)'
+         : 'rgba(190,255,215,.55)';
+  }
 
-      const wire = new THREE.LineSegments(
-        new THREE.EdgesGeometry(geo),
-        new THREE.LineBasicMaterial({color: 0xffffff, transparent:true, opacity:0.35})
-      );
-      cube.add(wire);
+  function render(){
+    clearG();
 
-      function animate(){
-        cube.rotation.x += 0.008;
-        cube.rotation.y += 0.012;
-        renderer.render(scene, camera);
-        requestAnimationFrame(animate);
+    const ux = (mx/W)*2 - 1;
+    const uy = (my/H)*2 - 1;
+    const pull = Math.sqrt(ux*ux + uy*uy);
+    const k = clamp(pull,0,1);
+
+    const rings = (mode===4)?28:22;
+    const segs  = (mode===4)?170:140;
+
+    const baseR = 70 + 180*(0.55 + 0.45*Math.sin(t*0.9));
+    const tilt  = 0.18 + 0.35*k;
+    const twist = 0.25 + 1.15*k + 1.2*burst;
+
+    g.setAttribute('stroke', strokeByMode());
+
+    for(let r=0;r<rings;r++){
+      const rr = baseR + r*9.0;
+      const pts = [];
+
+      for(let i=0;i<=segs;i++){
+        const a = (i/segs)*Math.PI*2;
+
+        const n1 = rand01(r*1000 + i*7);
+        const n2 = rand01(r*2000 + i*11);
+
+        const warp = (mode===1)?0.55 : (mode===2)?0.85 : (mode===3)?1.10 : 1.35;
+
+        const sA = Math.sin(a*3 + t*1.2 + r*0.12);
+        const cA = Math.cos(a*2 - t*1.0 + r*0.10);
+
+        const dr = rr*(0.08*warp)*(((n1-0.5)*2) + 0.55*sA + 0.35*cA) * twist;
+
+        let x = cx + (rr + dr)*Math.cos(a);
+        let y = cy + (rr + dr)*Math.sin(a);
+
+        const dx = (x - cx)/(rr+1);
+        y = cy + (y - cy) * (1 - tilt*dx*dx);
+
+        const px = ux*120, py = uy*120;
+        x += px*(0.15 + 0.85*(r/rings))*(0.25 + 0.75*n2)*(0.45 + 0.55*k);
+        y += py*(0.15 + 0.85*(r/rings))*(0.25 + 0.75*n1)*(0.45 + 0.55*k);
+
+        const shock = burst*120*Math.sin(a*4 + r*0.25);
+        x += shock*0.06*(r/rings);
+        y += shock*0.06*(r/rings);
+
+        pts.push([x,y]);
       }
-      animate();
 
-      window.addEventListener('resize', () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-      });
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', linePath(pts));
+      path.setAttribute('opacity', (0.10 + 0.90*(r/rings)).toFixed(3));
+      g.appendChild(path);
     }
-  </script>
+
+    // event “cut”
+    const cut = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const cutY = cy + uy*140;
+    cut.setAttribute('d', `M 40 ${cutY.toFixed(1)} L 860 ${(cutY + uy*20).toFixed(1)}`);
+    cut.setAttribute('stroke', 'rgba(255,255,255,.18)');
+    cut.setAttribute('stroke-width', '1');
+    cut.setAttribute('opacity', (0.35 + 0.35*k).toFixed(3));
+    g.appendChild(cut);
+
+    burst = Math.max(0, burst - 0.02);
+
+    if(live){
+      t += 0.018;
+      requestAnimationFrame(render);
+    }
+  }
+
+  function svgPointFromEvent(e){
+    const rect = svg.getBoundingClientRect();
+    const x = ((e.clientX - rect.left)/rect.width)*W;
+    const y = ((e.clientY - rect.top)/rect.height)*H;
+    return {x: clamp(x,0,W), y: clamp(y,0,H)};
+  }
+
+  svg.addEventListener('mousemove', (e) => {
+    const p = svgPointFromEvent(e);
+    mx = p.x; my = p.y;
+  });
+
+  svg.addEventListener('click', () => {
+    burst = 1;
+    if(!live){ live=true; setStatus(); requestAnimationFrame(render); }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if(e.key === ' '){
+      live = !live;
+      setStatus();
+      if(live) requestAnimationFrame(render);
+      e.preventDefault();
+    }
+    if(e.key === '1'){ mode=1; setStatus(); if(!live){live=true; requestAnimationFrame(render);} }
+    if(e.key === '2'){ mode=2; setStatus(); if(!live){live=true; requestAnimationFrame(render);} }
+    if(e.key === '3'){ mode=3; setStatus(); if(!live){live=true; requestAnimationFrame(render);} }
+    if(e.key === '4'){ mode=4; setStatus(); if(!live){live=true; requestAnimationFrame(render);} }
+  });
+
+  btnRand.addEventListener('click', () => {
+    seed=(Math.random()*1e9)|0; burst=1; setStatus();
+    if(!live){live=true; requestAnimationFrame(render);}
+  });
+  btnReset.addEventListener('click', () => {
+    mx=cx; my=cy; t=0; burst=1; setStatus();
+    if(!live){live=true; requestAnimationFrame(render);}
+  });
+
+  setStatus();
+  requestAnimationFrame(render);
+})();
+</script>
 </body>
 </html>
