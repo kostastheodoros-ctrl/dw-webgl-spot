@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Design as Event — Morphogenetic Field</title>
+  <title>Design as Event — Morphogenetic Field (φ-resonant persistence)</title>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;background:#04060a;}
     canvas{display:block;}
     .ui{
-      position:fixed;top:14px;left:14px;max-width:640px;
+      position:fixed;top:14px;left:14px;max-width:680px;
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
@@ -19,7 +19,7 @@
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
-      min-width:190px;text-align:right;
+      min-width:210px;text-align:right;
     }
   </style>
 </head>
@@ -28,10 +28,10 @@
   <div class="ui">
     <b>DESIGN AS EVENT — MORPHOGENETIC FIELD</b><br>
     Click → event birth<br>
-    Background → gradient + pulsing ring-field<br>
-    Meaning → edge-trails persist; <b>φ-resonant relations</b> keep more memory
+    Gold links (φ) → <b>events persist longer</b> (life-recharge + floor)<br>
+    Aim: φ relations become perceptible (duration + emphasis)
   </div>
-  <div class="hud" id="hud">events: 0<br>links: 0<br>phi-links: 0</div>
+  <div class="hud" id="hud">events: 0<br>links: 0<br>phi-links: 0<br>phi-persistence: 0</div>
 
   <canvas id="c"></canvas>
 
@@ -52,61 +52,63 @@
     addEventListener("mousemove",(e)=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
 
     let events = [];
-    // key -> {a,b,strength,ttl,trail,trailAge,phiScore}
+    // key -> {a,b,strength,ttl,phiScore}
     let edgeMemory = new Map();
 
-    const PHI = (1 + Math.sqrt(5)) / 2;      // 1.618...
-    const INV_PHI = 1 / PHI;                 // 0.618...
+    const PHI = (1 + Math.sqrt(5)) / 2; // 1.618...
+    const INV_PHI = 1 / PHI;            // 0.618...
 
     const P = {
       // event birth
       energyMin: 0.85,
-      energyMax: 1.90,
-      radiusBase: 95,
-      radiusK: 195,
-      lifeBase: 1.0,
-      lifeK: 0.62,
-      phaseSpeed: 0.015,
+      energyMax: 2.05,
+      radiusBase: 105,
+      radiusK: 215,
+      lifeInit: 1.0,
 
-      // background (NOT black)
-      bgFade: 0.07,            // lower -> longer traces, but we also paint gradient each frame
-      bgVignette: 0.22,        // darker edges but not black
-      bgGlow: 0.26,            // center glow strength
+      // background (not black)
+      bgFade: 0.07,
+      bgGlow: 0.30,
+      bgVignette: 0.24,
 
       // pulsing ring-field
       rings: 26,
-      ringPoints: 180,
+      ringPoints: 170,
       ringSpacing: 14,
       ringStart: 56,
       mouseGain: 0.11,
       pulseA: 0.075,
 
-      // link activation
-      edgeMaxD_factor: 0.95,
+      // linking (make relationships form easily)
+      edgeMaxD_factor: 0.98,
 
-      // memory (base)
+      // base memory (already strong)
       edgeCharge: 0.090,
-      edgeDecay: 0.0012,
-      edgeTTL_gain: 3.3,
-      edgeTTL_decay: 0.0014,
+      edgeDecay: 0.0010,
+      edgeTTL_gain: 3.0,
+      edgeTTL_decay: 0.0011,
 
-      // perspective: near vs far
-      widthNear: 4.8,
-      widthFar: 0.85,
-      alphaNear: 0.92,
-      alphaFar: 0.10,
+      // perspective
+      widthNear: 3.8,
+      widthFar: 0.8,
+      alphaNear: 0.78,
+      alphaFar: 0.08,
 
-      // trails
-      trailMaxPoints: 90,
-      trailSampleEvery: 2,
-      trailFade: 0.0052,
-      trailCurviness: 0.24,
+      // φ resonance (VERY VISIBLE + VERY STRONG)
+      phiTolerance: 0.16,         // wider gate -> more φ hits
+      phiGate: 0.55,              // must exceed this to count as φ-link
+      phiLinkWidthBoost: 2.4,     // thicker
+      phiLinkAlphaBoost: 1.35,    // brighter
 
-      // φ resonance
-      phiTolerance: 0.12,          // how close to φ / 1/φ to count
-      phiBoostTTL: 2.8,            // multiplier for TTL gain when resonant
-      phiBoostStrength: 1.55,      // multiplier for strength charge when resonant
-      phiTrailFadeFactor: 0.55     // trails fade slower when resonant
+      // φ causes EVENT persistence (the user requirement)
+      phiLifeFloor: 0.45,         // if φ present, event life cannot drop below this
+      phiLifeRecharge: 0.020,     // per φ-link per frame (scaled) add back life
+      phiLifeGlobalCap: 1.0,      // cap
+      baseLifeDecay: 0.988,       // normal decay (slower already)
+
+      // small drift so events don’t freeze rigidly
+      phaseSpeed: 0.015,
+      driftK: 0.08
     };
 
     addEventListener("click",(e)=>createEvent(e.clientX,e.clientY));
@@ -114,20 +116,32 @@
     function createEvent(x,y){
       const energy = P.energyMin + Math.random()*(P.energyMax-P.energyMin);
       const radius = P.radiusBase + P.radiusK*energy;
-      const lifetime = Math.min(1.0, P.lifeBase + P.lifeK*energy);
-
       events.push({
         id: nextId++,
         x,y,
         energy,
         radius,
-        life: lifetime,
-        phase: Math.random()*Math.PI*2
+        life: P.lifeInit,
+        phase: Math.random()*Math.PI*2,
+        phiHold: 0 // will rise when φ-relations exist
       });
     }
 
-    function lerp(a,b,t){ return a + (b-a)*t; }
     function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
+    // scale-invariant φ score: s = d / sqrt(rA*rB)
+    function phiScore(d, rA, rB){
+      const s = d / Math.max(1e-6, Math.sqrt(rA*rB));
+      const err = Math.min(Math.abs(s - PHI), Math.abs(s - INV_PHI));
+      const score = 1 - (err / P.phiTolerance);
+      return clamp01(score);
+    }
+
+    function depthWeight(d, maxD){
+      const x = 1 - (d / Math.max(1,maxD));
+      return clamp01(x*x);
+    }
 
     function bentMidpoint(ax,ay,bx,by,amount){
       const mx=(ax+bx)/2, my=(ay+by)/2;
@@ -138,38 +152,16 @@
       return { x: mx + nx*wobble, y: my + ny*wobble };
     }
 
-    // 0 (far) .. 1 (near)
-    function depthWeight(d, maxD){
-      const x = 1 - (d / Math.max(1,maxD));
-      return clamp01(x*x);
-    }
-
-    // φ-score: 0..1 (1 = perfect match)
-    function phiScoreScaled(d, rA, rB){
-      // scale-invariant normalization
-      const s = d / Math.max(1e-6, Math.sqrt(rA * rB));
-      const errPhi = Math.abs(s - PHI);
-      const errInv = Math.abs(s - INV_PHI);
-      const err = Math.min(errPhi, errInv);
-      // convert error to score
-      const score = 1 - (err / P.phiTolerance);
-      return clamp01(score);
-    }
-
     function drawGradientBackground(){
-      // subtle gradient + vignette so it's NOT black
-      const cx = w/2, cy = h/2;
-
-      // center glow
+      const cx=w/2, cy=h/2;
       const grd = ctx.createRadialGradient(cx, cy, Math.min(w,h)*0.05, cx, cy, Math.min(w,h)*0.95);
       grd.addColorStop(0, `rgba(18,28,44,${P.bgGlow})`);
-      grd.addColorStop(0.55, `rgba(6,10,18,0.24)`);
+      grd.addColorStop(0.55, `rgba(6,10,18,0.22)`);
       grd.addColorStop(1, `rgba(4,6,10,${P.bgVignette})`);
-
       ctx.fillStyle = grd;
       ctx.fillRect(0,0,w,h);
 
-      // persistence layer (keeps traces)
+      // persistence veil
       ctx.fillStyle = `rgba(4,6,10,${P.bgFade})`;
       ctx.fillRect(0,0,w,h);
     }
@@ -192,13 +184,13 @@
           const pulse = (Math.sin(t*1.0 + r*0.18) + Math.cos(t*1.35 + a*2.0)) * 0.5;
           x += Math.sin(a*3 + t + r*0.10) * baseRadius * P.pulseA;
           y += Math.cos(a*4 + t + r*0.10) * baseRadius * P.pulseA;
-          x += Math.cos(a*2.2 + t) * pulse * 2.2;
-          y += Math.sin(a*2.0 + t) * pulse * 2.2;
+          x += Math.cos(a*2.2 + t) * pulse * 2.0;
+          y += Math.sin(a*2.0 + t) * pulse * 2.0;
 
           if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
         }
         ctx.closePath();
-        const alpha=0.07+(r/P.rings)*0.22;
+        const alpha=0.07+(r/P.rings)*0.20;
         ctx.strokeStyle=`rgba(140,210,255,${alpha})`;
         ctx.lineWidth=1;
         ctx.stroke();
@@ -214,163 +206,171 @@
           const a=events[i], b=events[j];
           const dx=a.x-b.x, dy=a.y-b.y;
           const d=Math.sqrt(dx*dx+dy*dy);
-
           const maxD=(a.radius+b.radius)*P.edgeMaxD_factor;
+
           if(d < maxD){
-            const wNear = depthWeight(d, maxD);
-
-            // φ resonance score 0..1
-            const ps = phiScoreScaled(d, a.radius, b.radius);
-            if(ps > 0) phiCount++;
-
-            // near + φ reinforce charging
-            const baseCharge = wNear * (0.55 + 0.45*Math.min(a.life,b.life));
-            const charge = baseCharge * (1 + ps*0.85);
-
+            const near = depthWeight(d, maxD);
+            const ps = phiScore(d, a.radius, b.radius);
             const minId=Math.min(a.id,b.id), maxId=Math.max(a.id,b.id);
             const key=`${minId}-${maxId}`;
-            active.push({key,a,b,charge,d,maxD,wNear,phiScore:ps});
+
+            // charge: near + φ increases
+            const charge = near * (0.55 + 0.45*Math.min(a.life,b.life)) * (1 + 0.9*ps);
+
+            const isPhi = ps >= P.phiGate;
+            if(isPhi) phiCount++;
+
+            active.push({key,a,b,d,maxD,near,phiScore:ps,isPhi,charge});
           }
         }
       }
-
       return { active, phiCount };
     }
 
     function updateEdgeMemory(active){
-      frame++;
-
+      // decay memory
       for(const [k,rec] of edgeMemory.entries()){
         rec.strength = Math.max(0, rec.strength - P.edgeDecay);
         rec.ttl = Math.max(0, rec.ttl - P.edgeTTL_decay);
-
-        // φ edges keep trails longer
-        const fade = P.trailFade * (1 - (rec.phiScore||0) * (1 - P.phiTrailFadeFactor));
-
-        for(let i=0;i<rec.trailAge.length;i++){
-          rec.trailAge[i] = Math.max(0, rec.trailAge[i] - fade);
-        }
-        while(rec.trailAge.length && rec.trailAge[0] <= 0.001){
-          rec.trailAge.shift();
-          rec.trail.shift();
-        }
-
-        if((rec.strength <= 0.001 || rec.ttl <= 0.001) && rec.trail.length === 0){
+        rec.phiScore = (rec.phiScore||0) * 0.999; // tiny fade
+        if(rec.strength <= 0.001 || rec.ttl <= 0.001){
           edgeMemory.delete(k);
         }
       }
 
+      // charge
       for(const e of active){
-        const rec = edgeMemory.get(e.key) || { a:e.a, b:e.b, strength:0, ttl:0, trail:[], trailAge:[], phiScore:0 };
+        const rec = edgeMemory.get(e.key) || { a:e.a, b:e.b, strength:0, ttl:0, phiScore:0 };
         rec.a=e.a; rec.b=e.b;
-
-        // keep best φ-score seen for this relation
-        rec.phiScore = Math.max(rec.phiScore||0, e.phiScore);
-
-        const phiMulS = 1 + rec.phiScore * (P.phiBoostStrength - 1);
-        const phiMulT = 1 + rec.phiScore * (P.phiBoostTTL - 1);
-
-        rec.strength = Math.min(1.0, rec.strength + P.edgeCharge * e.charge * phiMulS);
-        rec.ttl = Math.min(1.0, rec.ttl + P.edgeTTL_gain * 0.01 * e.charge * phiMulT);
-
-        if(frame % P.trailSampleEvery === 0){
-          const bend = P.trailCurviness * (150 + 110*rec.phiScore) * e.charge;
-          const mp=bentMidpoint(e.a.x,e.a.y,e.b.x,e.b.y, bend);
-          rec.trail.push(mp);
-          rec.trailAge.push(1.0);
-          while(rec.trail.length > P.trailMaxPoints){
-            rec.trail.shift(); rec.trailAge.shift();
-          }
-        }
-
+        rec.phiScore = Math.max(rec.phiScore, e.phiScore);
+        rec.strength = Math.min(1.0, rec.strength + P.edgeCharge * e.charge);
+        rec.ttl = Math.min(1.0, rec.ttl + P.edgeTTL_gain * 0.01 * e.charge);
         edgeMemory.set(e.key, rec);
       }
     }
 
-    function drawTrails(){
-      for(const rec of edgeMemory.values()){
-        if(rec.trail.length < 2) continue;
+    // THIS is the key requirement: φ relations keep EVENTS alive
+    function applyPhiPersistence(active){
+      // reset
+      for(const e of events) e.phiHold = 0;
 
-        const avgAge = rec.trailAge.reduce((s,a)=>s+a,0)/Math.max(1,rec.trailAge.length);
-        const s = rec.strength * (0.35 + 0.65*rec.ttl);
+      let phiPersistence = 0;
 
-        // φ edges: warmer and slightly stronger trails
-        const phi = rec.phiScore || 0;
-        const alpha = Math.min(0.60, 0.10 + 0.52*avgAge*s*(1+0.35*phi));
-        const width = 0.9 + 3.4*avgAge*s*(1+0.30*phi);
+      for(const e of active){
+        if(!e.isPhi) continue;
 
-        ctx.beginPath();
-        for(let i=0;i<rec.trail.length;i++){
-          const p=rec.trail[i];
-          if(i===0) ctx.moveTo(p.x,p.y);
-          else ctx.lineTo(p.x,p.y);
-        }
+        // distribute “hold” to endpoints
+        const ps = e.phiScore; // 0.55..1
+        const hold = ps * (0.6 + 0.4*e.near);
 
-        // blend toward “gold” when φ-resonant
-        const r = Math.round(235 + 20*phi);
-        const g = Math.round(210 + 25*phi);
-        const b = Math.round(170 - 30*phi);
-        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
-        ctx.lineWidth = width;
-        ctx.stroke();
+        e.a.phiHold += hold;
+        e.b.phiHold += hold;
+        phiPersistence += hold;
       }
+
+      // convert hold into life floor + recharge
+      for(const e of events){
+        if(e.phiHold <= 0) continue;
+
+        // floor: perceptibility guarantee
+        e.life = Math.max(e.life, P.phiLifeFloor);
+
+        // recharge: extends duration strongly and visibly
+        const add = P.phiLifeRecharge * e.phiHold;
+        e.life = Math.min(P.phiLifeGlobalCap, e.life + add);
+      }
+
+      return phiPersistence;
     }
 
-    function drawImmediateLinks(active){
+    function drawLinks(active){
       for(const e of active){
         const a=e.a, b=e.b;
 
-        const width = lerp(P.widthFar, P.widthNear, e.wNear);
-        const alpha = lerp(P.alphaFar, P.alphaNear, e.wNear);
+        const baseW = lerp(P.widthFar, P.widthNear, e.near);
+        const baseA = lerp(P.alphaFar, P.alphaNear, e.near);
 
         const mem = edgeMemory.get(e.key);
-        const m = mem ? (0.35 + 0.65*mem.strength) : 0.55;
+        const m = mem ? (0.35 + 0.65*mem.strength) : 0.6;
+        let width = baseW * (0.85 + 0.55*m);
+        let alpha = Math.min(0.92, baseA * m);
 
-        // φ resonance lifts visibility + persistence feel
-        const phi = mem ? (mem.phiScore||0) : e.phiScore;
-        const alpha2 = Math.min(0.98, alpha * m * (1 + 0.35*phi));
-        const width2 = width * (0.85 + 0.55*m) * (1 + 0.20*phi);
+        const ps = mem ? (mem.phiScore||0) : e.phiScore;
 
-        const mp=bentMidpoint(a.x,a.y,b.x,b.y, (110*e.wNear) * (1+0.25*phi));
+        // φ emphasis: obvious gold + thicker + brighter
+        if(ps >= P.phiGate){
+          width *= P.phiLinkWidthBoost;
+          alpha = Math.min(0.98, alpha * P.phiLinkAlphaBoost);
+        }
+
+        const mp=bentMidpoint(a.x,a.y,b.x,b.y, (110*e.near) * (1 + 0.4*ps));
 
         ctx.beginPath();
         ctx.moveTo(a.x,a.y);
         ctx.quadraticCurveTo(mp.x, mp.y, b.x, b.y);
 
-        // φ links slightly warmer
-        const r = Math.round(250);
-        const g = Math.round(250 - 25*phi);
-        const bl = Math.round(220 - 80*phi);
-        ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha2})`;
-        ctx.lineWidth = width2;
+        if(ps >= P.phiGate){
+          // gold
+          ctx.strokeStyle = `rgba(255,215,120,${alpha})`;
+        } else {
+          // pale
+          ctx.strokeStyle = `rgba(255,250,220,${alpha})`;
+        }
+        ctx.lineWidth = width;
         ctx.stroke();
+
+        // small φ marker on the midpoint for clarity
+        if(ps >= P.phiGate){
+          ctx.beginPath();
+          ctx.arc(mp.x, mp.y, 2.2 + 3.0*ps, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255,215,120,${Math.min(0.9, 0.35 + 0.55*ps)})`;
+          ctx.fill();
+        }
       }
     }
 
     function drawEvents(){
       for(const e of events){
         e.phase += P.phaseSpeed;
-        e.life *= 0.987;
 
-        const drift = 0.08*e.energy*e.life;
-        e.x += Math.cos(e.phase)*drift;
-        e.y += Math.sin(e.phase*0.9)*drift;
+        // decay (but φ will counteract this)
+        e.life *= P.baseLifeDecay;
+
+        // micro drift (keeps it alive visually)
+        const drift = P.driftK * e.energy * e.life;
+        e.x += Math.cos(e.phase) * drift;
+        e.y += Math.sin(e.phase*0.9) * drift;
 
         e.x = Math.max(10, Math.min(w-10, e.x));
         e.y = Math.max(10, Math.min(h-10, e.y));
 
+        // halo
         ctx.beginPath();
-        ctx.arc(e.x,e.y, e.radius*e.life*0.16, 0, Math.PI*2);
-        ctx.strokeStyle = `rgba(255,210,120,${0.18 + 0.30*e.life})`;
+        ctx.arc(e.x,e.y, e.radius*e.life*0.15, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(255,210,120,${0.16 + 0.34*e.life})`;
         ctx.lineWidth = 1;
         ctx.stroke();
 
+        // dot
         ctx.beginPath();
-        ctx.arc(e.x,e.y, 2.4 + 2.0*e.energy, 0, Math.PI*2);
-        ctx.fillStyle = `rgba(255,245,210,${0.25 + 0.45*e.life})`;
+        ctx.arc(e.x,e.y, 2.6 + 2.1*e.energy, 0, Math.PI*2);
+        const glow = Math.min(1, 0.20 + 0.55*e.life + 0.20*clamp01(e.phiHold));
+        ctx.fillStyle = `rgba(255,245,210,${glow})`;
         ctx.fill();
+
+        // φ aura: if held, show golden ring
+        if(e.phiHold > 0.2){
+          const a = Math.min(0.85, 0.20 + 0.55*clamp01(e.phiHold));
+          ctx.beginPath();
+          ctx.arc(e.x,e.y, 10 + 22*clamp01(e.phiHold), 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(255,215,120,${a})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
       }
-      events = events.filter(e=>e.life > 0.05);
+
+      // remove only if truly dead (φ can keep them alive)
+      events = events.filter(e=>e.life > 0.03);
     }
 
     function relinkEdgeRefs(){
@@ -379,23 +379,30 @@
         const [aId,bId]=k.split("-").map(Number);
         const a=byId.get(aId), b=byId.get(bId);
         if(a && b){ rec.a=a; rec.b=b; }
-        else { rec.a=a||null; rec.b=b||null; }
+        else edgeMemory.delete(k);
       }
     }
 
     function render(){
+      frame++;
       drawGradientBackground();
       drawPulsingField();
 
       const { active, phiCount } = buildActiveEdges();
       updateEdgeMemory(active);
 
-      drawTrails();
-      drawImmediateLinks(active);
+      // apply φ event persistence BEFORE drawing events (so you see it immediately)
+      const phiPersistence = applyPhiPersistence(active);
+
+      drawLinks(active);
       drawEvents();
       relinkEdgeRefs();
 
-      hud.innerHTML = `events: ${events.length}<br>links: ${active.length}<br>phi-links: ${phiCount}`;
+      hud.innerHTML =
+        `events: ${events.length}<br>` +
+        `links: ${active.length}<br>` +
+        `phi-links: ${phiCount}<br>` +
+        `phi-persistence: ${phiPersistence.toFixed(2)}`;
 
       t += 0.01;
       requestAnimationFrame(render);
