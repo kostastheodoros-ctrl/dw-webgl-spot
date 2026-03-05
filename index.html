@@ -1,427 +1,223 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Design Walker — Design as Event (Interactive Field)</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Design Walker — Event Field</title>
+
 <style>
-  html,body{margin:0;height:100%;background:#05060a;overflow:hidden;}
-  svg{width:100vw;height:100vh;display:block;}
-  .ui{
-    position:fixed;left:12px;top:10px;right:12px;z-index:10;
-    font:13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
-    color:rgba(255,255,255,.88);
-    background:rgba(0,0,0,.35);
-    border:1px solid rgba(255,255,255,.18);
-    border-radius:12px;
-    padding:10px 12px;
-    backdrop-filter: blur(6px);
-    display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;
-  }
-  .ui b{color:#fff;letter-spacing:.02em}
-  .hint{color:rgba(203,213,225,.95)}
-  .btn{
-    cursor:pointer;background:#0b0f14;color:#eaeaea;
-    border:1px solid rgba(255,255,255,.18);
-    border-radius:10px;padding:8px 10px;font:13px system-ui;
-  }
-  .btn[aria-pressed="true"]{border-color:rgba(125,211,252,.55);box-shadow:0 0 0 2px rgba(125,211,252,.15) inset;}
-  .chip{
-    display:inline-flex;align-items:center;gap:6px;
-    padding:6px 8px;border-radius:999px;
-    border:1px solid rgba(255,255,255,.16);
-    background:rgba(11,15,20,.65);
-    color:rgba(255,255,255,.85);
-    font:12px system-ui;
-  }
-  input[type="range"]{accent-color:#7dd3fc}
+html,body{
+margin:0;
+height:100%;
+background:#05060a;
+overflow:hidden;
+font-family:system-ui,Segoe UI,Roboto,Arial;
+}
+
+svg{
+width:100vw;
+height:100vh;
+display:block;
+}
+
+.ui{
+position:fixed;
+top:10px;
+left:12px;
+right:12px;
+padding:10px 12px;
+background:rgba(0,0,0,.35);
+border:1px solid rgba(255,255,255,.18);
+border-radius:12px;
+backdrop-filter:blur(6px);
+color:#eaeaea;
+font-size:13px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.btn{
+cursor:pointer;
+background:#0b0f14;
+color:#eaeaea;
+border:1px solid rgba(255,255,255,.2);
+border-radius:8px;
+padding:6px 10px;
+}
 </style>
 </head>
+
 <body>
 
 <div class="ui">
-  <div>
-    <b>DESIGN AS EVENT — INTERACTIVE FIELD</b><br>
-    <span class="hint">Move: reconfigure • Click: burst • 1–4: modes • Space: freeze • R: reseed</span>
-  </div>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-    <span class="chip">Intensity <input id="intensity" type="range" min="0" max="100" value="68"></span>
-    <span class="chip">Glow <input id="glow" type="range" min="0" max="100" value="74"></span>
-    <button class="btn" id="mic" aria-pressed="false" title="Optional: audio-reactive pulse (microphone)">Mic</button>
-    <button class="btn" id="rand">Reseed</button>
-    <button class="btn" id="reset">Reset</button>
-  </div>
+<div><b>DESIGN AS EVENT</b></div>
+<div>
+<button class="btn" id="rand">Reseed</button>
+</div>
 </div>
 
-<svg id="svg" viewBox="0 0 900 520" aria-label="Interactive event field">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="38%" r="80%">
-      <stop offset="0%" stop-color="rgba(125,211,252,.18)"/>
-      <stop offset="45%" stop-color="rgba(5,6,10,1)"/>
-      <stop offset="100%" stop-color="rgba(5,6,10,1)"/>
-    </radialGradient>
+<svg id="svg" viewBox="0 0 900 520">
 
-    <!-- Glow filter (SVG-only) -->
-    <filter id="glowFx" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="2.6" result="b1"/>
-      <feColorMatrix in="b1" type="matrix"
-        values="1 0 0 0 0
-                0 1 0 0 0
-                0 0 1 0 0
-                0 0 0 0.70 0" result="b2"/>
-      <feMerge>
-        <feMergeNode in="b2"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
+<defs>
 
-    <!-- subtle vignette -->
-    <radialGradient id="vig" cx="50%" cy="50%" r="70%">
-      <stop offset="60%" stop-color="rgba(0,0,0,0)"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,.45)"/>
-    </radialGradient>
-  </defs>
+<radialGradient id="bg">
+<stop offset="0%" stop-color="#0b1117"/>
+<stop offset="100%" stop-color="#05060a"/>
+</radialGradient>
 
-  <rect x="0" y="0" width="900" height="520" fill="url(#bg)"></rect>
+<filter id="glow">
+<feGaussianBlur stdDeviation="3"/>
+</filter>
 
-  <g id="halo" fill="none" stroke="rgba(125,211,252,.22)" stroke-width="1" filter="url(#glowFx)"></g>
-  <g id="g" fill="none" stroke="rgba(170,235,255,.60)" stroke-width="1.15" stroke-linecap="round" filter="url(#glowFx)"></g>
-  <g id="sparks" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1" stroke-linecap="round"></g>
+</defs>
 
-  <rect x="0" y="0" width="900" height="520" fill="url(#vig)"></rect>
-  <text id="status" x="18" y="500" fill="rgba(255,255,255,.68)" style="font:12px system-ui">mode 1 • live</text>
+<rect width="900" height="520" fill="url(#bg)"/>
+
+<g id="halo" stroke="#8be9fd" fill="none" filter="url(#glow)"></g>
+<g id="field" stroke="#8be9fd" fill="none"></g>
+<g id="sparks" stroke="#ffffff"></g>
+
+<!-- DW identity -->
+<g id="dwMark" stroke="#ffd166" stroke-width="2.2" fill="none" opacity=".25">
+
+<path d="
+M 140 120 L 140 400
+M 140 400 L 220 400
+Q 300 400 300 320
+L 300 200
+Q 300 120 220 120
+L 140 120
+
+M 360 120 L 360 400
+M 360 400 L 470 400
+Q 610 400 610 260
+Q 610 120 470 120
+L 360 120
+"/>
+
+</g>
+
 </svg>
 
 <script>
-(() => {
-  const svg = document.getElementById('svg');
-  const halo = document.getElementById('halo');
-  const g = document.getElementById('g');
-  const sparks = document.getElementById('sparks');
-  const statusEl = document.getElementById('status');
 
-  const sIntensity = document.getElementById('intensity');
-  const sGlow = document.getElementById('glow');
-  const micBtn = document.getElementById('mic');
-  const btnRand = document.getElementById('rand');
-  const btnReset = document.getElementById('reset');
+const svg=document.getElementById("svg")
+const field=document.getElementById("field")
+const halo=document.getElementById("halo")
+const sparks=document.getElementById("sparks")
+const randBtn=document.getElementById("rand")
 
-  const glowFx = document.getElementById('glowFx');
-  const feBlur = glowFx.querySelector('feGaussianBlur');
+const W=900
+const H=520
+const cx=W/2
+const cy=H/2
 
-  const W=900,H=520,cx=W/2,cy=H/2;
+let t=0
+let seed=Math.random()*1000
 
-  let mode=1, live=true, seed=(Math.random()*1e9)|0;
-  let t=0, mx=cx, my=cy;
+function rand(i){
 
-  // Event dynamics
-  let burst=0, burstPhase=0, sparkTTL=0;
+let x=(seed+i*9999)|0
+x^=x<<13
+x^=x>>17
+x^=x<<5
+return (x%1000)/1000
 
-  // Audio (optional)
-  let audioOn=false;
-  let audioLevel=0;      // smoothed 0..1
-  let audioTarget=0;
-  let analyser=null, dataArr=null, audioCtx=null, micStream=null;
-  let audioRaf=0;
+}
 
-  // deterministic pseudo-random
-  function rand01(i){
-    let x = (seed ^ (i*0x9e3779b1)) >>> 0;
-    x ^= x << 13; x >>>= 0;
-    x ^= x >> 17; x >>>= 0;
-    x ^= x << 5;  x >>>= 0;
-    return (x % 100000) / 100000;
-  }
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function clear(node){
+while(node.firstChild)node.removeChild(node.firstChild)
+}
 
-  function setStatus(extra=''){
-    statusEl.textContent = `mode ${mode} • ${live?'live':'frozen'} • seed ${seed}${extra}`;
-  }
-  function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+function path(points){
 
-  function linePath(points){
-    let d = `M ${points[0][0].toFixed(2)} ${points[0][1].toFixed(2)}`;
-    for(let i=1;i<points.length;i++) d += ` L ${points[i][0].toFixed(2)} ${points[i][1].toFixed(2)}`;
-    return d;
-  }
+let d=`M ${points[0][0]} ${points[0][1]}`
 
-  function strokeByMode(){
-    return (mode===1) ? 'rgba(170,235,255,.62)'
-         : (mode===2) ? 'rgba(255,170,230,.58)'
-         : (mode===3) ? 'rgba(255,240,170,.48)'
-         : 'rgba(170,255,210,.56)';
-  }
+for(let i=1;i<points.length;i++){
 
-  function updateGlow(){
-    const gv = (+sGlow.value)/100;
-    feBlur.setAttribute('stdDeviation', (1.2 + 3.8*gv).toFixed(2));
-  }
-  sGlow.addEventListener('input', updateGlow);
-  updateGlow();
+d+=` L ${points[i][0]} ${points[i][1]}`
 
-  function svgPointFromEvent(e){
-    const rect = svg.getBoundingClientRect();
-    const x = ((e.clientX - rect.left)/rect.width)*W;
-    const y = ((e.clientY - rect.top)/rect.height)*H;
-    return {x: clamp(x,0,W), y: clamp(y,0,H)};
-  }
+}
 
-  svg.addEventListener('mousemove', (e) => {
-    const p = svgPointFromEvent(e);
-    mx = p.x; my = p.y;
-  });
+return d
 
-  svg.addEventListener('click', () => {
-    burst = Math.max(burst, 1);
-    sparkTTL = Math.max(sparkTTL, 1);
-    if(!live){ live=true; setStatus(audioOn?' • mic on':'' ); requestAnimationFrame(render); }
-  });
+}
 
-  window.addEventListener('keydown', (e) => {
-    if(e.key === ' '){
-      live = !live;
-      setStatus(audioOn?' • mic on':'' );
-      if(live) requestAnimationFrame(render);
-      e.preventDefault();
-    }
-    if(e.key === 'r' || e.key === 'R'){
-      seed=(Math.random()*1e9)|0;
-      burst = Math.max(burst, 1);
-      sparkTTL = Math.max(sparkTTL, 1);
-      setStatus(audioOn?' • mic on':'' );
-      if(!live){ live=true; requestAnimationFrame(render); }
-    }
-    if(e.key === '1'){ mode=1; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-    if(e.key === '2'){ mode=2; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-    if(e.key === '3'){ mode=3; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-    if(e.key === '4'){ mode=4; setStatus(audioOn?' • mic on':'' ); if(!live){live=true; requestAnimationFrame(render);} }
-  });
+function render(){
 
-  btnRand.addEventListener('click', () => {
-    seed=(Math.random()*1e9)|0;
-    burst = Math.max(burst, 1);
-    sparkTTL = Math.max(sparkTTL, 1);
-    setStatus(audioOn?' • mic on':'' );
-    if(!live){ live=true; requestAnimationFrame(render); }
-  });
+clear(field)
+clear(halo)
+clear(sparks)
 
-  btnReset.addEventListener('click', () => {
-    mx=cx; my=cy; t=0;
-    burst = Math.max(burst, 1);
-    sparkTTL = Math.max(sparkTTL, 1);
-    setStatus(audioOn?' • mic on':'' );
-    if(!live){ live=true; requestAnimationFrame(render); }
-  });
+const rings=26
+const segs=160
 
-  function stopMic(){
-    audioOn = false;
-    audioLevel = 0;
-    audioTarget = 0;
-    if(audioRaf) cancelAnimationFrame(audioRaf);
-    audioRaf = 0;
+const base=90+140*Math.sin(t*.8)
 
-    if(micStream){
-      micStream.getTracks().forEach(tr => tr.stop());
-      micStream = null;
-    }
-    if(audioCtx){
-      try{ audioCtx.close(); }catch(_){}
-      audioCtx = null;
-    }
-    analyser = null;
-    dataArr = null;
+for(let r=0;r<rings;r++){
 
-    micBtn.textContent = 'Mic';
-    micBtn.setAttribute('aria-pressed','false');
-    setStatus('');
-  }
+const rr=base+r*9
 
-  async function startMic(){
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      setStatus(' • mic unsupported');
-      return;
-    }
-    try{
-      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = audioCtx.createMediaStreamSource(micStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 1024;
-      dataArr = new Uint8Array(analyser.fftSize);
-      src.connect(analyser);
+const pts=[]
 
-      audioOn = true;
-      micBtn.textContent = 'Mic on';
-      micBtn.setAttribute('aria-pressed','true');
-      setStatus(' • mic on');
+for(let i=0;i<=segs;i++){
 
-      const tick = () => {
-        if(!audioOn || !analyser) return;
-        analyser.getByteTimeDomainData(dataArr);
+const a=i/segs*Math.PI*2
 
-        // RMS
-        let sum=0;
-        for(let i=0;i<dataArr.length;i++){
-          const v=(dataArr[i]-128)/128;
-          sum += v*v;
-        }
-        const rms = Math.sqrt(sum/dataArr.length);     // ~0..1
-        audioTarget = clamp(rms*2.4, 0, 1);            // boost
-        audioLevel = audioLevel*0.86 + audioTarget*0.14; // smooth
-        audioRaf = requestAnimationFrame(tick);
-      };
-      tick();
-    } catch(e){
-      stopMic();
-      setStatus(' • mic blocked');
-    }
-  }
+const wob=Math.sin(a*3+t+r*.2)*.2
 
-  micBtn.addEventListener('click', async () => {
-    if(audioOn){ stopMic(); return; }
-    micBtn.textContent = 'Mic…';
-    await startMic();
-  });
+const x=cx+(rr+wob*40)*Math.cos(a)
+const y=cy+(rr+wob*20)*Math.sin(a)
 
-  // Main render loop
-  function render(){
-    clear(halo); clear(g); clear(sparks);
+pts.push([x,y])
 
-    const ux = (mx/W)*2 - 1;
-    const uy = (my/H)*2 - 1;
-    const pull = Math.sqrt(ux*ux + uy*uy);
-    const k = clamp(pull,0,1);
+}
 
-    const intensity = (+sIntensity.value)/100; // 0..1
-    const glow = (+sGlow.value)/100;
+const p=document.createElementNS("http://www.w3.org/2000/svg","path")
 
-    // Audio pulse: mic if on, otherwise auto-beat (keeps it alive)
-    const autoBeat = 0.45 + 0.55*Math.max(0, Math.sin(t*1.65));
-    const pulse = clamp(audioOn ? audioLevel : (0.16*autoBeat), 0, 1);
+p.setAttribute("d",path(pts))
+p.setAttribute("opacity",.15+.8*(r/rings))
+p.setAttribute("stroke-width",1.2)
 
-    // pulse drives event (bounded, so it doesn’t “wash out”)
-    burst = Math.max(burst, pulse*0.82);
-    sparkTTL = Math.max(sparkTTL, pulse*0.70);
+field.appendChild(p)
 
-    const swBase = 1.0 + 0.95*intensity;
-    g.setAttribute('stroke', strokeByMode());
-    g.setAttribute('stroke-width', (1.05 + 0.60*intensity + 0.25*pulse).toFixed(2));
+}
 
-    const rings = Math.round(22 + 16*intensity + (mode===4?6:0));
-    const segs  = Math.round(150 + 135*intensity + (mode===4?45:0));
+for(let i=0;i<20;i++){
 
-    const baseR = 72 + 200*(0.52 + 0.48*Math.sin(t*0.92));
-    const tilt  = (0.16 + 0.44*k) * (0.62 + 0.58*intensity);
+const a=Math.random()*Math.PI*2
+const r=160+Math.random()*180
 
-    const twist = (0.22 + 1.35*k) * (0.55 + 0.95*intensity) + 1.65*burst;
+const x1=cx+r*Math.cos(a)
+const y1=cy+r*Math.sin(a)
 
-    const haloEvery = Math.max(2, Math.round(7 - 5*glow));
+const x2=x1+20*Math.cos(a)
+const y2=y1+20*Math.sin(a)
 
-    // Halo shells (depth)
-    for(let r=0;r<rings;r+=haloEvery){
-      const rr = baseR + r*9.2;
-      const pts=[];
-      for(let i=0;i<=segs;i++){
-        const a=(i/segs)*Math.PI*2;
-        const wob = 0.05*Math.sin(a*5 + t*1.1 + r*0.22) + 0.03*Math.cos(a*3 - t*0.9);
-        let x=cx + rr*Math.cos(a);
-        let y=cy + rr*Math.sin(a);
-        y = cy + (y-cy)*(1 - tilt*((x-cx)/(rr+1))**2);
-        x += wob*rr*(0.55 + 0.25*pulse);
-        y += wob*rr*(0.35 + 0.20*pulse);
-        pts.push([x,y]);
-      }
-      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d', linePath(pts));
-      p.setAttribute('opacity', (0.10 + 0.10*(r/rings) + 0.22*glow + 0.10*pulse).toFixed(3));
-      p.setAttribute('stroke', 'rgba(125,211,252,.22)');
-      p.setAttribute('stroke-width', (0.9 + 0.7*glow + 0.55*pulse).toFixed(2));
-      halo.appendChild(p);
-    }
+const p=document.createElementNS("http://www.w3.org/2000/svg","path")
 
-    // Main field
-    const px = ux*132, py = uy*132;
+p.setAttribute("d",`M ${x1} ${y1} L ${x2} ${y2}`)
+p.setAttribute("opacity",.4)
 
-    for(let r=0;r<rings;r++){
-      const rr = baseR + r*9.2;
-      const pts=[];
-      for(let i=0;i<=segs;i++){
-        const a=(i/segs)*Math.PI*2;
+sparks.appendChild(p)
 
-        const n1 = rand01(r*1000 + i*7);
-        const n2 = rand01(r*2000 + i*11);
+}
 
-        const warp = (mode===1)?0.62 : (mode===2)?0.96 : (mode===3)?1.22 : 1.56;
+t+=.015
 
-        const sA = Math.sin(a*3 + t*1.25 + r*0.12);
-        const cA = Math.cos(a*2 - t*1.05 + r*0.10);
+requestAnimationFrame(render)
 
-        const dr = rr*(0.087*warp)*(((n1-0.5)*2) + 0.60*sA + 0.38*cA) * twist;
+}
 
-        let x = cx + (rr + dr)*Math.cos(a);
-        let y = cy + (rr + dr)*Math.sin(a);
+randBtn.onclick=()=>{
 
-        const dx = (x - cx)/(rr+1);
-        y = cy + (y - cy) * (1 - tilt*dx*dx);
+seed=Math.random()*1000
 
-        x += px*(0.16 + 0.84*(r/rings))*(0.20 + 0.80*n2)*(0.40 + 0.60*k);
-        y += py*(0.16 + 0.84*(r/rings))*(0.20 + 0.80*n1)*(0.40 + 0.60*k);
+}
 
-        const shock = burst * (170 + 30*pulse) * Math.sin(a*4 + r*0.25 + burstPhase);
-        x += shock*0.06*(r/rings);
-        y += shock*0.06*(r/rings);
+render()
 
-        pts.push([x,y]);
-      }
-
-      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d', linePath(pts));
-      path.setAttribute('opacity', (0.10 + 0.92*(r/rings)).toFixed(3));
-      path.setAttribute('stroke-width', (swBase*(0.85 + 0.58*(r/rings))*(1 + 0.25*pulse)).toFixed(2));
-      g.appendChild(path);
-    }
-
-    // Event cut line + sparks
-    const cutY = cy + uy*150;
-    const cut = document.createElementNS('http://www.w3.org/2000/svg','path');
-    cut.setAttribute('d', `M 40 ${cutY.toFixed(1)} L 860 ${(cutY + uy*24).toFixed(1)}`);
-    cut.setAttribute('stroke', 'rgba(255,255,255,.20)');
-    cut.setAttribute('stroke-width', (1 + 0.75*intensity + 0.95*pulse).toFixed(2));
-    cut.setAttribute('opacity', (0.35 + 0.35*k + 0.35*burst).toFixed(3));
-    sparks.appendChild(cut);
-
-    if(sparkTTL>0){
-      const count = Math.round(16 + 32*intensity + 26*pulse);
-      for(let i=0;i<count;i++){
-        const a = (Math.PI*2)*(i/count) + 0.5*Math.sin(t*1.5+i);
-        const len = (24 + 56*rand01(i*33)) * (0.55 + 0.95*intensity + 0.95*pulse);
-        const x1 = cx + (120 + 250*rand01(i*71))*Math.cos(a);
-        const y1 = cy + (120 + 250*rand01(i*97))*Math.sin(a);
-        const x2 = x1 + len*Math.cos(a);
-        const y2 = y1 + len*Math.sin(a);
-
-        const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-        p.setAttribute('d', `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`);
-        p.setAttribute('opacity', (0.06 + 0.56*(sparkTTL/1)).toFixed(3));
-        p.setAttribute('stroke', 'rgba(255,255,255,.55)');
-        sparks.appendChild(p);
-      }
-      sparkTTL = Math.max(0, sparkTTL - 0.028);
-    }
-
-    // decay + phase
-    burst = Math.max(0, burst - 0.016);
-    burstPhase += 0.085*burst;
-
-    if(live){
-      t += 0.017;
-      requestAnimationFrame(render);
-    }
-  }
-
-  setStatus('');
-  requestAnimationFrame(render);
-})();
 </script>
 
 </body>
