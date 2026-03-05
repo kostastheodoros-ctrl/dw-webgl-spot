@@ -8,7 +8,7 @@
     html,body{margin:0;height:100%;background:#04060a;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;}
     canvas{display:block;}
     .ui{
-      position:fixed;top:14px;left:14px;max-width:520px;
+      position:fixed;top:14px;left:14px;max-width:560px;
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
@@ -19,7 +19,7 @@
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
-      min-width:150px;text-align:right;
+      min-width:160px;text-align:right;
     }
   </style>
 </head>
@@ -28,8 +28,8 @@
   <div class="ui">
     <b>DESIGN AS EVENT — MORPHOGENETIC FIELD</b><br>
     Click → event birth<br>
-    Lines → immediate relational links (high visibility)<br>
-    Trails → persistent sequences (edge-memory)
+    Background → pulsing ring-field (context topology)<br>
+    Lines → depth perspective (distance-weighted) + long-lived edge-memory trails
   </div>
   <div class="hud" id="hud">events: 0<br>links: 0</div>
 
@@ -48,40 +48,54 @@
     let t=0, frame=0;
     let nextId=1;
 
+    let mouse = { x: innerWidth/2, y: innerHeight/2 };
+    addEventListener("mousemove",(e)=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
+
     let events = [];
-    let edgeMemory = new Map(); // key -> {a,b,strength,ttl,trail,trailAge}
+    // key -> {a,b,strength,ttl,trail,trailAge}
+    let edgeMemory = new Map();
 
     const P = {
       // event birth
       energyMin: 0.8,
-      energyMax: 1.8,
+      energyMax: 1.85,
       radiusBase: 90,
-      radiusK: 185,
+      radiusK: 190,
       lifeBase: 1.0,
-      lifeK: 0.55,
+      lifeK: 0.62,
       phaseSpeed: 0.015,
 
-      // LINKING (make it obvious)
-      edgeMaxD_factor: 0.95,     // MUCH larger: links form easily
-      edgeCharge: 0.10,
-      edgeDecay: 0.0022,         // slow decay => lines persist
-      edgeTTL_gain: 3.2,
-      edgeTTL_decay: 0.0030,
+      // pulsing ring-field (the “background” you want)
+      rings: 24,
+      ringPoints: 170,
+      ringSpacing: 15,
+      ringStart: 58,
+      mouseGain: 0.12,           // subtle baseline drift
+      pulseA: 0.075,             // breathing amplitude
 
-      // VISUALS (bright + thick)
-      edgeAlphaBase: 0.18,
-      edgeAlphaK: 0.70,
-      edgeWidthBase: 1.2,
-      edgeWidthK: 3.2,
+      // LINKING: easier to connect, but depth-weighted
+      edgeMaxD_factor: 0.95,
 
-      // trails (persistent sequences)
-      trailMaxPoints: 60,
+      // MEMORY: persist MUCH longer
+      edgeCharge: 0.095,
+      edgeDecay: 0.0015,         // very slow strength decay
+      edgeTTL_gain: 3.6,
+      edgeTTL_decay: 0.0018,     // very slow TTL decay
+
+      // DRAW perspective (near vs far)
+      widthNear: 4.2,
+      widthFar: 0.8,
+      alphaNear: 0.92,
+      alphaFar: 0.10,
+
+      // trails
+      trailMaxPoints: 80,
       trailSampleEvery: 2,
-      trailFade: 0.010,
-      trailCurviness: 0.22,
+      trailFade: 0.006,          // slower trail fade (more persistence)
+      trailCurviness: 0.24,
 
-      // background fade (keep depth)
-      bgFade: 0.14
+      // background fade (keep traces longer)
+      bgFade: 0.09
     };
 
     addEventListener("click",(e)=>createEvent(e.clientX,e.clientY));
@@ -110,6 +124,47 @@
       return { x: mx + nx*wobble, y: my + ny*wobble };
     }
 
+    // Depth weight: 0 (far) .. 1 (near)
+    function depthWeight(d, maxD){
+      const x = 1 - (d / Math.max(1,maxD));
+      // make near relations pop more (nonlinear)
+      return Math.max(0, Math.min(1, x*x));
+    }
+
+    function drawPulsingField(){
+      const cx=w/2, cy=h/2;
+      for(let r=0;r<P.rings;r++){
+        const baseRadius = P.ringStart + r*P.ringSpacing;
+        ctx.beginPath();
+        for(let i=0;i<P.ringPoints;i++){
+          const a=(i/P.ringPoints)*Math.PI*2;
+          let x=cx + baseRadius*Math.cos(a);
+          let y=cy + baseRadius*Math.sin(a);
+
+          // subtle mouse drift (keeps background alive)
+          const mdx = (mouse.x - cx)/Math.max(1,cx);
+          const mdy = (mouse.y - cy)/Math.max(1,cy);
+          x += mdx*baseRadius*P.mouseGain;
+          y += mdy*baseRadius*P.mouseGain;
+
+          // pulsing ripple (your “breathing background”)
+          const pulse = (Math.sin(t*1.0 + r*0.18) + Math.cos(t*1.35 + a*2.0)) * 0.5;
+          x += Math.sin(a*3 + t + r*0.10) * baseRadius * P.pulseA;
+          y += Math.cos(a*4 + t + r*0.10) * baseRadius * P.pulseA;
+          x += Math.cos(a*2.2 + t) * pulse * 2.2;
+          y += Math.sin(a*2.0 + t) * pulse * 2.2;
+
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.closePath();
+
+        const alpha=0.08+(r/P.rings)*0.24;
+        ctx.strokeStyle=`rgba(140,210,255,${alpha})`;
+        ctx.lineWidth=1;
+        ctx.stroke();
+      }
+    }
+
     function buildActiveEdges(){
       const active = [];
       for(let i=0;i<events.length;i++){
@@ -119,11 +174,11 @@
           const d=Math.sqrt(dx*dx+dy*dy);
           const maxD=(a.radius+b.radius)*P.edgeMaxD_factor;
           if(d < maxD){
-            const closeness = 1 - (d / Math.max(1,maxD));
-            const charge = closeness * (0.5 + 0.5*Math.min(a.life,b.life));
+            const wNear = depthWeight(d, maxD);
+            const charge = wNear * (0.55 + 0.45*Math.min(a.life,b.life)); // near links charge more
             const minId=Math.min(a.id,b.id), maxId=Math.max(a.id,b.id);
             const key=`${minId}-${maxId}`;
-            active.push({key,a,b,charge});
+            active.push({key,a,b,charge,d,maxD,wNear});
           }
         }
       }
@@ -133,12 +188,10 @@
     function updateEdgeMemory(active){
       frame++;
 
-      // decay existing
       for(const [k,rec] of edgeMemory.entries()){
         rec.strength = Math.max(0, rec.strength - P.edgeDecay);
         rec.ttl = Math.max(0, rec.ttl - P.edgeTTL_decay);
 
-        // fade trail points
         for(let i=0;i<rec.trailAge.length;i++){
           rec.trailAge[i] = Math.max(0, rec.trailAge[i] - P.trailFade);
         }
@@ -152,15 +205,17 @@
         }
       }
 
-      // charge active + sample trail
       for(const e of active){
         const rec = edgeMemory.get(e.key) || { a:e.a, b:e.b, strength:0, ttl:0, trail:[], trailAge:[] };
         rec.a=e.a; rec.b=e.b;
+
+        // strong persistence: charge adds slowly but sticks
         rec.strength = Math.min(1.0, rec.strength + P.edgeCharge*e.charge);
         rec.ttl = Math.min(1.0, rec.ttl + P.edgeTTL_gain*0.01*e.charge);
 
+        // sample curved midpoint for trail -> creates sequences
         if(frame % P.trailSampleEvery === 0){
-          const mp=bentMidpoint(e.a.x,e.a.y,e.b.x,e.b.y, P.trailCurviness*140*e.charge);
+          const mp=bentMidpoint(e.a.x,e.a.y,e.b.x,e.b.y, P.trailCurviness*160*e.charge);
           rec.trail.push(mp);
           rec.trailAge.push(1.0);
           while(rec.trail.length > P.trailMaxPoints){
@@ -172,13 +227,18 @@
       }
     }
 
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
     function drawTrails(){
       for(const rec of edgeMemory.values()){
         if(rec.trail.length < 2) continue;
+
         const avgAge = rec.trailAge.reduce((s,a)=>s+a,0)/Math.max(1,rec.trailAge.length);
         const s = rec.strength * (0.35 + 0.65*rec.ttl);
-        const alpha = Math.min(0.55, 0.10 + 0.45*avgAge*s);
-        const width = 1.0 + 2.6*avgAge*s;
+
+        // trails should feel “structural”, but still depthy
+        const alpha = Math.min(0.55, 0.10 + 0.50*avgAge*s);
+        const width = 0.9 + 3.0*avgAge*s;
 
         ctx.beginPath();
         for(let i=0;i<rec.trail.length;i++){
@@ -193,20 +253,27 @@
     }
 
     function drawImmediateLinks(active){
-      // These are the “lines that connect the clicks” (guaranteed visible)
+      // Present-time links: depth perspective by distance
       for(const e of active){
         const a=e.a, b=e.b;
-        const base = Math.min(1.0, 0.35 + 0.65*e.charge);
-        const alpha = Math.min(0.85, P.edgeAlphaBase + base*P.edgeAlphaK);
-        const width = P.edgeWidthBase + base*P.edgeWidthK;
 
-        const mp=bentMidpoint(a.x,a.y,b.x,b.y, 90*e.charge);
+        // near => thick/bright ; far => thin/faint
+        const width = lerp(P.widthFar, P.widthNear, e.wNear);
+        const alpha = lerp(P.alphaFar, P.alphaNear, e.wNear);
+
+        // also modulate by memory strength if already established
+        const mem = edgeMemory.get(e.key);
+        const m = mem ? (0.35 + 0.65*mem.strength) : 0.55;
+        const alpha2 = Math.min(0.95, alpha * m);
+        const width2 = width * (0.85 + 0.55*m);
+
+        const mp=bentMidpoint(a.x,a.y,b.x,b.y, 110*e.wNear);
 
         ctx.beginPath();
         ctx.moveTo(a.x,a.y);
         ctx.quadraticCurveTo(mp.x, mp.y, b.x, b.y);
-        ctx.strokeStyle = `rgba(255,250,220,${alpha})`;
-        ctx.lineWidth = width;
+        ctx.strokeStyle = `rgba(255,250,220,${alpha2})`;
+        ctx.lineWidth = width2;
         ctx.stroke();
       }
     }
@@ -214,9 +281,8 @@
     function drawEvents(){
       for(const e of events){
         e.phase += P.phaseSpeed;
-        e.life *= 0.987; // slow decay so links have time to form
+        e.life *= 0.987; // slow decay so relations persist
 
-        // micro drift
         const drift = 0.08*e.energy*e.life;
         e.x += Math.cos(e.phase)*drift;
         e.y += Math.sin(e.phase*0.9)*drift;
@@ -224,14 +290,12 @@
         e.x = Math.max(10, Math.min(w-10, e.x));
         e.y = Math.max(10, Math.min(h-10, e.y));
 
-        // halo
         ctx.beginPath();
-        ctx.arc(e.x,e.y, e.radius*e.life*0.18, 0, Math.PI*2);
+        ctx.arc(e.x,e.y, e.radius*e.life*0.16, 0, Math.PI*2);
         ctx.strokeStyle = `rgba(255,210,120,${0.18 + 0.30*e.life})`;
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // dot
         ctx.beginPath();
         ctx.arc(e.x,e.y, 2.4 + 2.0*e.energy, 0, Math.PI*2);
         ctx.fillStyle = `rgba(255,245,210,${0.25 + 0.45*e.life})`;
@@ -251,17 +315,19 @@
     }
 
     function render(){
-      // background persistence
+      // keep traces longer (depth)
       ctx.fillStyle = `rgba(4,6,10,${P.bgFade})`;
       ctx.fillRect(0,0,w,h);
+
+      // restore “pulsing background”
+      drawPulsingField();
 
       const active = buildActiveEdges();
       updateEdgeMemory(active);
 
-      // DEPTH: trails, then current links
+      // depth: trails first, then present links, then events
       drawTrails();
       drawImmediateLinks(active);
-
       drawEvents();
       relinkEdgeRefs();
 
