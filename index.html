@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Design as Event — Morphogenetic Field (φ-resonant persistence)</title>
+  <title>Design as Event — φ-Lock Persistence</title>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;background:#04060a;}
     canvas{display:block;}
     .ui{
-      position:fixed;top:14px;left:14px;max-width:680px;
+      position:fixed;top:14px;left:14px;max-width:720px;
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
@@ -19,7 +19,7 @@
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
-      min-width:210px;text-align:right;
+      min-width:240px;text-align:right;
     }
   </style>
 </head>
@@ -27,11 +27,10 @@
 <body>
   <div class="ui">
     <b>DESIGN AS EVENT — MORPHOGENETIC FIELD</b><br>
-    Click → event birth<br>
-    Gold links (φ) → <b>events persist longer</b> (life-recharge + floor)<br>
-    Aim: φ relations become perceptible (duration + emphasis)
+    Click → event birth • Lines → relations • <b>φ-lock → perceptible duration</b><br>
+    The system actively converges linked pairs to φ-distance and then locks them (not luck-based).
   </div>
-  <div class="hud" id="hud">events: 0<br>links: 0<br>phi-links: 0<br>phi-persistence: 0</div>
+  <div class="hud" id="hud">events: 0<br>links: 0<br>phiLocked: 0</div>
 
   <canvas id="c"></canvas>
 
@@ -45,25 +44,19 @@
     addEventListener("resize", resize);
     resize();
 
-    let t=0, frame=0;
-    let nextId=1;
-
+    let t=0, frame=0, nextId=1;
     let mouse = { x: innerWidth/2, y: innerHeight/2 };
     addEventListener("mousemove",(e)=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
-
-    let events = [];
-    // key -> {a,b,strength,ttl,phiScore}
-    let edgeMemory = new Map();
 
     const PHI = (1 + Math.sqrt(5)) / 2; // 1.618...
     const INV_PHI = 1 / PHI;            // 0.618...
 
     const P = {
-      // event birth
+      // births
       energyMin: 0.85,
-      energyMax: 2.05,
-      radiusBase: 105,
-      radiusK: 215,
+      energyMax: 2.10,
+      radiusBase: 110,
+      radiusK: 220,
       lifeInit: 1.0,
 
       // background (not black)
@@ -72,21 +65,21 @@
       bgVignette: 0.24,
 
       // pulsing ring-field
-      rings: 26,
-      ringPoints: 170,
-      ringSpacing: 14,
-      ringStart: 56,
-      mouseGain: 0.11,
+      rings: 24,
+      ringPoints: 165,
+      ringSpacing: 15,
+      ringStart: 58,
+      mouseGain: 0.10,
       pulseA: 0.075,
 
-      // linking (make relationships form easily)
-      edgeMaxD_factor: 0.98,
+      // linking
+      edgeMaxD_factor: 0.95,
 
-      // base memory (already strong)
-      edgeCharge: 0.090,
+      // base memory
       edgeDecay: 0.0010,
-      edgeTTL_gain: 3.0,
       edgeTTL_decay: 0.0011,
+      edgeCharge: 0.10,
+      edgeTTL_gain: 3.2,
 
       // perspective
       widthNear: 3.8,
@@ -94,22 +87,25 @@
       alphaNear: 0.78,
       alphaFar: 0.08,
 
-      // φ resonance (VERY VISIBLE + VERY STRONG)
-      phiTolerance: 0.16,         // wider gate -> more φ hits
-      phiGate: 0.55,              // must exceed this to count as φ-link
-      phiLinkWidthBoost: 2.4,     // thicker
-      phiLinkAlphaBoost: 1.35,    // brighter
+      // φ-lock mechanism
+      phiTolerance: 0.18,       // wider: easier convergence
+      phiLockFrames: 55,        // must stay near target for N frames
+      phiSpring: 0.030,         // “pull” strength toward φ target distance
+      phiDamping: 0.86,         // stabilizes oscillation
+      phiLifeFloor: 0.55,       // once locked, event stays perceptible
+      phiLifeRecharge: 0.018,   // per locked edge per frame
+      phiMaxLocksPerEvent: 3,   // prevents infinite life
 
-      // φ causes EVENT persistence (the user requirement)
-      phiLifeFloor: 0.45,         // if φ present, event life cannot drop below this
-      phiLifeRecharge: 0.020,     // per φ-link per frame (scaled) add back life
-      phiLifeGlobalCap: 1.0,      // cap
-      baseLifeDecay: 0.988,       // normal decay (slower already)
-
-      // small drift so events don’t freeze rigidly
+      // event motion
+      baseLifeDecay: 0.987,
       phaseSpeed: 0.015,
-      driftK: 0.08
+      driftK: 0.07
     };
+
+    // State
+    let events = [];
+    // edgeMemory key -> {a,b,strength,ttl,phiScore,lockFrames,locked,targetMode}
+    let edgeMemory = new Map();
 
     addEventListener("click",(e)=>createEvent(e.clientX,e.clientY));
 
@@ -123,24 +119,29 @@
         radius,
         life: P.lifeInit,
         phase: Math.random()*Math.PI*2,
-        phiHold: 0 // will rise when φ-relations exist
+        vx: 0, vy: 0,
+        lockCount: 0
       });
     }
 
     function clamp01(x){ return Math.max(0, Math.min(1, x)); }
     function lerp(a,b,t){ return a + (b-a)*t; }
 
-    // scale-invariant φ score: s = d / sqrt(rA*rB)
-    function phiScore(d, rA, rB){
-      const s = d / Math.max(1e-6, Math.sqrt(rA*rB));
-      const err = Math.min(Math.abs(s - PHI), Math.abs(s - INV_PHI));
-      const score = 1 - (err / P.phiTolerance);
-      return clamp01(score);
-    }
-
     function depthWeight(d, maxD){
       const x = 1 - (d / Math.max(1,maxD));
       return clamp01(x*x);
+    }
+
+    // scale-invariant distance ratio: s = d / sqrt(rA*rB)
+    function phiScoreAndMode(d, rA, rB){
+      const s = d / Math.max(1e-6, Math.sqrt(rA*rB));
+      const errPhi = Math.abs(s - PHI);
+      const errInv = Math.abs(s - INV_PHI);
+      if(errPhi <= errInv){
+        return { score: clamp01(1 - (errPhi / P.phiTolerance)), mode: "phi" };
+      } else {
+        return { score: clamp01(1 - (errInv / P.phiTolerance)), mode: "invphi" };
+      }
     }
 
     function bentMidpoint(ax,ay,bx,by,amount){
@@ -160,8 +161,6 @@
       grd.addColorStop(1, `rgba(4,6,10,${P.bgVignette})`);
       ctx.fillStyle = grd;
       ctx.fillRect(0,0,w,h);
-
-      // persistence veil
       ctx.fillStyle = `rgba(4,6,10,${P.bgFade})`;
       ctx.fillRect(0,0,w,h);
     }
@@ -199,32 +198,25 @@
 
     function buildActiveEdges(){
       const active = [];
-      let phiCount = 0;
-
       for(let i=0;i<events.length;i++){
         for(let j=i+1;j<events.length;j++){
           const a=events[i], b=events[j];
           const dx=a.x-b.x, dy=a.y-b.y;
           const d=Math.sqrt(dx*dx+dy*dy);
           const maxD=(a.radius+b.radius)*P.edgeMaxD_factor;
-
           if(d < maxD){
             const near = depthWeight(d, maxD);
-            const ps = phiScore(d, a.radius, b.radius);
+            const {score, mode} = phiScoreAndMode(d, a.radius, b.radius);
+
             const minId=Math.min(a.id,b.id), maxId=Math.max(a.id,b.id);
             const key=`${minId}-${maxId}`;
 
-            // charge: near + φ increases
-            const charge = near * (0.55 + 0.45*Math.min(a.life,b.life)) * (1 + 0.9*ps);
-
-            const isPhi = ps >= P.phiGate;
-            if(isPhi) phiCount++;
-
-            active.push({key,a,b,d,maxD,near,phiScore:ps,isPhi,charge});
+            const charge = near * (0.55 + 0.45*Math.min(a.life,b.life)) * (1 + 0.9*score);
+            active.push({ key, a, b, d, maxD, near, phiScore: score, phiMode: mode, charge });
           }
         }
       }
-      return { active, phiCount };
+      return active;
     }
 
     function updateEdgeMemory(active){
@@ -232,145 +224,219 @@
       for(const [k,rec] of edgeMemory.entries()){
         rec.strength = Math.max(0, rec.strength - P.edgeDecay);
         rec.ttl = Math.max(0, rec.ttl - P.edgeTTL_decay);
-        rec.phiScore = (rec.phiScore||0) * 0.999; // tiny fade
-        if(rec.strength <= 0.001 || rec.ttl <= 0.001){
-          edgeMemory.delete(k);
-        }
+        // if both endpoints gone, delete
+        if(!rec.a || !rec.b) edgeMemory.delete(k);
+        // if memory fades out and not locked, delete
+        if((rec.strength <= 0.001 || rec.ttl <= 0.001) && !rec.locked) edgeMemory.delete(k);
       }
 
-      // charge
+      // charge active edges + carry best phiScore/mode
       for(const e of active){
-        const rec = edgeMemory.get(e.key) || { a:e.a, b:e.b, strength:0, ttl:0, phiScore:0 };
-        rec.a=e.a; rec.b=e.b;
+        const rec = edgeMemory.get(e.key) || {
+          a: e.a, b: e.b,
+          strength: 0, ttl: 0,
+          phiScore: 0, targetMode: e.phiMode,
+          lockFrames: 0, locked: false
+        };
+        rec.a = e.a; rec.b = e.b;
+        // keep the mode that yields higher score more often
+        if(e.phiScore > rec.phiScore){
+          rec.targetMode = e.phiMode;
+        }
         rec.phiScore = Math.max(rec.phiScore, e.phiScore);
+
         rec.strength = Math.min(1.0, rec.strength + P.edgeCharge * e.charge);
         rec.ttl = Math.min(1.0, rec.ttl + P.edgeTTL_gain * 0.01 * e.charge);
+
         edgeMemory.set(e.key, rec);
       }
     }
 
-    // THIS is the key requirement: φ relations keep EVENTS alive
-    function applyPhiPersistence(active){
-      // reset
-      for(const e of events) e.phiHold = 0;
-
-      let phiPersistence = 0;
+    // φ-lock: actively move linked pairs toward target distance
+    function applyPhiConvergenceAndLock(active){
+      let lockedCount = 0;
 
       for(const e of active){
-        if(!e.isPhi) continue;
+        const rec = edgeMemory.get(e.key);
+        if(!rec || !rec.a || !rec.b) continue;
 
-        // distribute “hold” to endpoints
-        const ps = e.phiScore; // 0.55..1
-        const hold = ps * (0.6 + 0.4*e.near);
+        // Choose φ target based on stored mode
+        const a = rec.a, b = rec.b;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx*dx+dy*dy) || 1;
 
-        e.a.phiHold += hold;
-        e.b.phiHold += hold;
-        phiPersistence += hold;
+        const base = Math.sqrt(a.radius * b.radius);
+        const target = (rec.targetMode === "invphi") ? (INV_PHI * base) : (PHI * base);
+
+        // How close are we (scale-invariant)
+        const err = Math.abs(dist - target) / Math.max(1, target);
+        const score = clamp01(1 - (err / P.phiTolerance)); // 0..1
+
+        // Only “work” if relationship exists + score is nontrivial
+        if(score > 0.08){
+          // spring toward target distance: move both endpoints opposite directions
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const delta = (dist - target);
+
+          // apply to velocities (smooth, not teleport)
+          const pull = -delta * P.phiSpring * score;
+
+          // damp
+          a.vx *= P.phiDamping; a.vy *= P.phiDamping;
+          b.vx *= P.phiDamping; b.vy *= P.phiDamping;
+
+          a.vx -= nx * pull; a.vy -= ny * pull;
+          b.vx += nx * pull; b.vy += ny * pull;
+
+          // lock accumulation
+          if(score >= 0.72){
+            rec.lockFrames += 1;
+          } else {
+            rec.lockFrames = Math.max(0, rec.lockFrames - 1);
+          }
+
+          // lock condition
+          if(!rec.locked && rec.lockFrames >= P.phiLockFrames){
+            rec.locked = true;
+            // prevent infinite locking
+            a.lockCount = (a.lockCount||0) + 1;
+            b.lockCount = (b.lockCount||0) + 1;
+          }
+
+          // if locked, sustain
+          if(rec.locked){
+            lockedCount++;
+
+            // keep events perceptible (your requirement)
+            if(a.lockCount <= P.phiMaxLocksPerEvent){
+              a.life = Math.max(a.life, P.phiLifeFloor);
+              a.life = Math.min(1.0, a.life + P.phiLifeRecharge * (0.6 + 0.4*score));
+            }
+            if(b.lockCount <= P.phiMaxLocksPerEvent){
+              b.life = Math.max(b.life, P.phiLifeFloor);
+              b.life = Math.min(1.0, b.life + P.phiLifeRecharge * (0.6 + 0.4*score));
+            }
+
+            // also keep the edge memory strong
+            rec.ttl = Math.min(1.0, rec.ttl + 0.012);
+            rec.strength = Math.min(1.0, rec.strength + 0.010);
+            rec.phiScore = Math.max(rec.phiScore, score);
+          } else {
+            // not locked yet: keep score updated so drawing becomes increasingly gold as it converges
+            rec.phiScore = Math.max(rec.phiScore, score);
+          }
+        } else {
+          // if no meaningful score, bleed lockFrames
+          rec.lockFrames = Math.max(0, rec.lockFrames - 1);
+        }
       }
 
-      // convert hold into life floor + recharge
-      for(const e of events){
-        if(e.phiHold <= 0) continue;
-
-        // floor: perceptibility guarantee
-        e.life = Math.max(e.life, P.phiLifeFloor);
-
-        // recharge: extends duration strongly and visibly
-        const add = P.phiLifeRecharge * e.phiHold;
-        e.life = Math.min(P.phiLifeGlobalCap, e.life + add);
-      }
-
-      return phiPersistence;
+      return lockedCount;
     }
 
     function drawLinks(active){
       for(const e of active){
-        const a=e.a, b=e.b;
+        const a = e.a, b = e.b;
+        const mem = edgeMemory.get(e.key);
 
         const baseW = lerp(P.widthFar, P.widthNear, e.near);
         const baseA = lerp(P.alphaFar, P.alphaNear, e.near);
-
-        const mem = edgeMemory.get(e.key);
         const m = mem ? (0.35 + 0.65*mem.strength) : 0.6;
+
         let width = baseW * (0.85 + 0.55*m);
         let alpha = Math.min(0.92, baseA * m);
 
         const ps = mem ? (mem.phiScore||0) : e.phiScore;
+        const isLocked = mem ? mem.locked === true : false;
 
-        // φ emphasis: obvious gold + thicker + brighter
-        if(ps >= P.phiGate){
-          width *= P.phiLinkWidthBoost;
-          alpha = Math.min(0.98, alpha * P.phiLinkAlphaBoost);
-        }
-
-        const mp=bentMidpoint(a.x,a.y,b.x,b.y, (110*e.near) * (1 + 0.4*ps));
+        const mp = bentMidpoint(a.x,a.y,b.x,b.y, (110*e.near) * (1 + 0.4*ps));
 
         ctx.beginPath();
         ctx.moveTo(a.x,a.y);
         ctx.quadraticCurveTo(mp.x, mp.y, b.x, b.y);
 
-        if(ps >= P.phiGate){
-          // gold
-          ctx.strokeStyle = `rgba(255,215,120,${alpha})`;
-        } else {
-          // pale
-          ctx.strokeStyle = `rgba(255,250,220,${alpha})`;
-        }
-        ctx.lineWidth = width;
-        ctx.stroke();
+        if(isLocked){
+          // unmistakable gold
+          ctx.strokeStyle = `rgba(255,215,120,${Math.min(0.98, alpha*1.45)})`;
+          ctx.lineWidth = width * 2.8;
+          ctx.stroke();
 
-        // small φ marker on the midpoint for clarity
-        if(ps >= P.phiGate){
+          // lock marker
           ctx.beginPath();
-          ctx.arc(mp.x, mp.y, 2.2 + 3.0*ps, 0, Math.PI*2);
-          ctx.fillStyle = `rgba(255,215,120,${Math.min(0.9, 0.35 + 0.55*ps)})`;
+          ctx.arc(mp.x, mp.y, 5.5 + 4.0*ps, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255,215,120,0.85)`;
           ctx.fill();
+        } else if(ps > 0.45){
+          // warm candidate
+          ctx.strokeStyle = `rgba(255,225,160,${Math.min(0.95, alpha*(1+0.4*ps))})`;
+          ctx.lineWidth = width * (1.2 + 0.9*ps);
+          ctx.stroke();
+        } else {
+          // normal pale
+          ctx.strokeStyle = `rgba(255,250,220,${alpha})`;
+          ctx.lineWidth = width;
+          ctx.stroke();
         }
       }
     }
 
-    function drawEvents(){
+    function stepEvents(){
       for(const e of events){
-        e.phase += P.phaseSpeed;
-
-        // decay (but φ will counteract this)
+        // decay (φ-lock will recharge)
         e.life *= P.baseLifeDecay;
 
-        // micro drift (keeps it alive visually)
+        // micro drift + apply velocity from φ-spring
+        e.phase += P.phaseSpeed;
         const drift = P.driftK * e.energy * e.life;
-        e.x += Math.cos(e.phase) * drift;
-        e.y += Math.sin(e.phase*0.9) * drift;
 
-        e.x = Math.max(10, Math.min(w-10, e.x));
-        e.y = Math.max(10, Math.min(h-10, e.y));
+        e.vx += Math.cos(e.phase) * drift * 0.06;
+        e.vy += Math.sin(e.phase*0.9) * drift * 0.06;
 
+        // integrate
+        e.x += e.vx;
+        e.y += e.vy;
+
+        // mild friction
+        e.vx *= 0.985;
+        e.vy *= 0.985;
+
+        // bounds
+        if(e.x < 12){ e.x=12; e.vx *= -0.6; }
+        if(e.y < 12){ e.y=12; e.vy *= -0.6; }
+        if(e.x > w-12){ e.x=w-12; e.vx *= -0.6; }
+        if(e.y > h-12){ e.y=h-12; e.vy *= -0.6; }
+      }
+
+      events = events.filter(e=>e.life > 0.03);
+    }
+
+    function drawEvents(){
+      for(const e of events){
         // halo
         ctx.beginPath();
-        ctx.arc(e.x,e.y, e.radius*e.life*0.15, 0, Math.PI*2);
+        ctx.arc(e.x,e.y, e.radius*e.life*0.14, 0, Math.PI*2);
         ctx.strokeStyle = `rgba(255,210,120,${0.16 + 0.34*e.life})`;
         ctx.lineWidth = 1;
         ctx.stroke();
 
         // dot
         ctx.beginPath();
-        ctx.arc(e.x,e.y, 2.6 + 2.1*e.energy, 0, Math.PI*2);
-        const glow = Math.min(1, 0.20 + 0.55*e.life + 0.20*clamp01(e.phiHold));
-        ctx.fillStyle = `rgba(255,245,210,${glow})`;
+        ctx.arc(e.x,e.y, 2.8 + 2.2*e.energy, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(255,245,210,${0.22 + 0.55*e.life})`;
         ctx.fill();
 
-        // φ aura: if held, show golden ring
-        if(e.phiHold > 0.2){
-          const a = Math.min(0.85, 0.20 + 0.55*clamp01(e.phiHold));
+        // if locked participates, aura
+        if((e.lockCount||0) > 0){
+          const a = Math.min(0.85, 0.25 + 0.25*(e.lockCount||0));
           ctx.beginPath();
-          ctx.arc(e.x,e.y, 10 + 22*clamp01(e.phiHold), 0, Math.PI*2);
+          ctx.arc(e.x,e.y, 14 + 10*Math.min(3,(e.lockCount||0)), 0, Math.PI*2);
           ctx.strokeStyle = `rgba(255,215,120,${a})`;
           ctx.lineWidth = 1.2;
           ctx.stroke();
         }
       }
-
-      // remove only if truly dead (φ can keep them alive)
-      events = events.filter(e=>e.life > 0.03);
     }
 
     function relinkEdgeRefs(){
@@ -388,21 +454,20 @@
       drawGradientBackground();
       drawPulsingField();
 
-      const { active, phiCount } = buildActiveEdges();
+      const active = buildActiveEdges();
       updateEdgeMemory(active);
 
-      // apply φ event persistence BEFORE drawing events (so you see it immediately)
-      const phiPersistence = applyPhiPersistence(active);
+      const lockedCount = applyPhiConvergenceAndLock(active);
 
       drawLinks(active);
+      stepEvents();
       drawEvents();
       relinkEdgeRefs();
 
       hud.innerHTML =
         `events: ${events.length}<br>` +
         `links: ${active.length}<br>` +
-        `phi-links: ${phiCount}<br>` +
-        `phi-persistence: ${phiPersistence.toFixed(2)}`;
+        `phiLocked: ${lockedCount}`;
 
       t += 0.01;
       requestAnimationFrame(render);
