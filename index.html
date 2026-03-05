@@ -8,7 +8,7 @@
     html,body{margin:0;height:100%;background:#04060a;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;}
     canvas{display:block;}
     .ui{
-      position:fixed;top:14px;left:14px;max-width:420px;
+      position:fixed;top:14px;left:14px;max-width:460px;
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
@@ -22,7 +22,7 @@
     <b>DESIGN AS EVENT — MORPHOGENETIC FIELD</b><br>
     Move → baseline field drift<br>
     Click → event birth (energy / radius / lifetime / phase)<br>
-    Meaning → dots connect by interaction; polygon appears only from metastable clusters (≥3)
+    Meaning → relations persist (edge-memory) + emergent polygon only from metastable clusters (≥3)
   </div>
 
   <canvas id="c"></canvas>
@@ -44,41 +44,55 @@
     let events = [];
     let shockwaves = [];
 
-    // Cluster stability memory: signature -> frames
+    // Cluster stability memory: signature -> frames/stable
     const clusterMemory = new Map();
-    const STABILITY_FRAMES = 70;
+    const STABILITY_FRAMES = 80;
+
+    // Edge-memory: key "minId-maxId" -> { strength, ttl, lastSeen }
+    const edgeMemory = new Map();
 
     const P = {
+      // birth
       energyMin: 0.55,
-      energyMax: 1.45,
-      radiusBase: 70,
-      radiusK: 140,
-      lifeBase: 0.85,
-      lifeK: 0.35,
+      energyMax: 1.55,
+      radiusBase: 75,
+      radiusK: 155,
+      lifeBase: 0.92,
+      lifeK: 0.42,
       phaseSpeed: 0.015,
 
       // field
-      attractorSoftening: 2400,
+      attractorSoftening: 2600,
       attractorGain: 1.0,
-      attractorLocalGain: 0.22,
-      mouseGain: 0.18,
+      attractorLocalGain: 0.23,
+      mouseGain: 0.17,
 
-      // interaction
+      // interaction logic
       interactLinkScale: 0.55,
       fusionThreshold: 0.28,
       annihThreshold: 0.95,
       dampFactor: 0.86,
 
-      // “meaning” links (DOTS CONNECT)
-      linkDistanceFactor: 0.52,     // relative to (rA+rB)
-      linkAlphaMax: 0.34,
-      linkWidth: 1,
-
-      // background field rings (context)
+      // RINGS (context field)
       rings: 22,
       ringPoints: 150,
       ringSpacing: 16,
-      ringStart: 60
+      ringStart: 60,
+
+      // EDGE MEMORY (the “meaning” upgrade)
+      edgeMaxD_factor: 0.56,     // relation considered “active” under this normalized distance
+      edgeCharge: 0.08,          // how fast a relation “charges” when active
+      edgeDecay: 0.0065,         // how slow it decays (lower = persists longer)
+      edgeTTL_gain: 1.6,         // TTL gain when active (more = longer persistence)
+      edgeTTL_decay: 0.010,      // TTL decay per frame
+      edgeStrengthMax: 1.0,
+      edgeWidthBase: 0.6,
+      edgeWidthK: 2.1,
+      edgeAlphaBase: 0.05,
+      edgeAlphaK: 0.42,
+
+      // Meaning accent: “triads” become more significant than isolated edges
+      triadBoost: 0.18
     };
 
     addEventListener("click",(e)=>createEvent(e.clientX,e.clientY));
@@ -183,7 +197,6 @@
         }
       }
 
-      // update stability memory
       const seenNow = new Set(comps.map(c=>c.key));
       for(const c of comps){
         const rec = clusterMemory.get(c.key) || {frames:0, stable:false};
@@ -232,17 +245,14 @@
           let x=cx + baseRadius*Math.cos(a);
           let y=cy + baseRadius*Math.sin(a);
 
-          // mouse baseline
           const mdx = (mouse.x - cx)/Math.max(1,cx);
           const mdy = (mouse.y - cy)/Math.max(1,cy);
           x += mdx*baseRadius*P.mouseGain;
           y += mdy*baseRadius*P.mouseGain;
 
-          // breathing ripple
           x += Math.sin(a*3 + t + r*0.12)*baseRadius*0.07;
           y += Math.cos(a*4 + t + r*0.12)*baseRadius*0.07;
 
-          // event attractor field
           const fv=attractorVectorAt(x,y);
           x += fv.vx * baseRadius * P.attractorGain * P.attractorLocalGain;
           y += fv.vy * baseRadius * P.attractorGain * P.attractorLocalGain;
@@ -257,25 +267,100 @@
       }
     }
 
-    // 핵심: “τελείες να ενώνονται” -> relational links
-    function drawMeaningLinks(){
+    // --- CORE “meaning” upgrade: persist relations as memory ---
+    function updateEdgeMemory(activeEdges, triadPairs){
+      // decay all stored edges slowly (meaning persists)
+      for(const [k, rec] of edgeMemory.entries()){
+        rec.strength = Math.max(0, rec.strength - P.edgeDecay);
+        rec.ttl = Math.max(0, rec.ttl - P.edgeTTL_decay);
+        if(rec.strength <= 0.001 || rec.ttl <= 0.001) edgeMemory.delete(k);
+      }
+
+      // charge active edges
+      for(const e of activeEdges){
+        const key = e.key;
+        const prev = edgeMemory.get(key) || { strength: 0, ttl: 0, a: e.a, b: e.b };
+        prev.a = e.a; prev.b = e.b;
+        prev.strength = Math.min(P.edgeStrengthMax, prev.strength + P.edgeCharge * e.charge);
+        prev.ttl = Math.min(1.0, prev.ttl + P.edgeTTL_gain * 0.01 * e.charge);
+        edgeMemory.set(key, prev);
+      }
+
+      // triad amplification (meaningful motifs): edges inside triangles get extra coherence
+      for(const key of triadPairs){
+        const rec = edgeMemory.get(key);
+        if(rec){
+          rec.strength = Math.min(P.edgeStrengthMax, rec.strength + P.triadBoost * 0.01);
+          rec.ttl = Math.min(1.0, rec.ttl + 0.01);
+        }
+      }
+    }
+
+    function buildActiveEdgesAndTriads(){
+      const activeEdges = [];
+      const neigh = new Map(); // id -> Set(neighbors)
+
+      // active edges: based on normalized distance
       for(let i=0;i<events.length;i++){
         for(let j=i+1;j<events.length;j++){
           const a=events[i], b=events[j];
           const dx=a.x-b.x, dy=a.y-b.y;
           const d=Math.sqrt(dx*dx+dy*dy);
-          const maxD = (a.radius + b.radius) * P.linkDistanceFactor;
+
+          const maxD = (a.radius + b.radius) * P.edgeMaxD_factor;
           if(d < maxD){
             const closeness = 1 - (d / Math.max(1,maxD));
-            const alpha = Math.min(P.linkAlphaMax, closeness * (0.18 + 0.35*Math.min(a.life,b.life)));
-            ctx.beginPath();
-            ctx.moveTo(a.x,a.y);
-            ctx.lineTo(b.x,b.y);
-            ctx.strokeStyle = `rgba(255,235,190,${alpha})`;
-            ctx.lineWidth = P.linkWidth;
-            ctx.stroke();
+            const charge = closeness * (0.5 + 0.5*Math.min(a.life,b.life));
+            const minId = Math.min(a.id,b.id);
+            const maxId = Math.max(a.id,b.id);
+            const key = `${minId}-${maxId}`;
+
+            activeEdges.push({ key, a, b, charge });
+
+            if(!neigh.has(a.id)) neigh.set(a.id, new Set());
+            if(!neigh.has(b.id)) neigh.set(b.id, new Set());
+            neigh.get(a.id).add(b.id);
+            neigh.get(b.id).add(a.id);
           }
         }
+      }
+
+      // triads: if a connected to b and c, and b connected to c => triangle motif
+      const triadPairs = new Set(); // edge keys participating in triads
+      for(const [id, ns] of neigh.entries()){
+        const arr = Array.from(ns);
+        for(let i=0;i<arr.length;i++){
+          for(let j=i+1;j<arr.length;j++){
+            const b = arr[i], c = arr[j];
+            if(neigh.get(b)?.has(c)){
+              // add the three edges of the triangle
+              triadPairs.add(`${Math.min(id,b)}-${Math.max(id,b)}`);
+              triadPairs.add(`${Math.min(id,c)}-${Math.max(id,c)}`);
+              triadPairs.add(`${Math.min(b,c)}-${Math.max(b,c)}`);
+            }
+          }
+        }
+      }
+
+      return { activeEdges, triadPairs };
+    }
+
+    function drawEdgeMemory(){
+      for(const rec of edgeMemory.values()){
+        const a = rec.a, b = rec.b;
+        if(!a || !b) continue;
+
+        // if events died, let edge decay naturally (already handled by decay)
+        const s = rec.strength * Math.min(1.0, 0.25 + rec.ttl);
+        const alpha = Math.min(0.55, P.edgeAlphaBase + s * P.edgeAlphaK);
+        const width = P.edgeWidthBase + s * P.edgeWidthK;
+
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `rgba(255,235,190,${alpha})`;
+        ctx.lineWidth = width;
+        ctx.stroke();
       }
     }
 
@@ -295,17 +380,17 @@
           const p=hull[i];
           const dx=p.x-cx, dy=p.y-cy;
           const mag=Math.sqrt(dx*dx+dy*dy)||1;
-          const expand = 10 + 14*Math.sin(t*1.2 + i*0.7);
+          const expand = 12 + 12*Math.sin(t*1.1 + i*0.7);
           const x=p.x + (dx/mag)*expand;
           const y=p.y + (dy/mag)*expand;
           if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
         }
         ctx.closePath();
 
-        // This is the ONLY allowed polygon: emergent metastable contour
+        // only allowed “polygon”: emergent metastable contour
         ctx.fillStyle="rgba(120,210,255,0.045)";
         ctx.fill();
-        ctx.strokeStyle="rgba(120,210,255,0.26)";
+        ctx.strokeStyle="rgba(120,210,255,0.28)";
         ctx.lineWidth=1;
         ctx.stroke();
       }
@@ -328,9 +413,8 @@
       for(const e of events){
         e.age += 1;
         e.phase += P.phaseSpeed;
-        e.life *= 0.986;
+        e.life *= 0.985; // a touch slower decay
 
-        // micro-drift (keeps the graph alive)
         const drift = 0.10*e.energy*e.life;
         e.x += Math.cos(e.phase)*drift;
         e.y += Math.sin(e.phase*0.9)*drift;
@@ -340,36 +424,60 @@
 
         // halo
         ctx.beginPath();
-        ctx.arc(e.x,e.y, e.radius*e.life*0.23, 0, Math.PI*2);
-        ctx.strokeStyle=`rgba(255,210,120,${0.16 + e.life*0.30})`;
+        ctx.arc(e.x,e.y, e.radius*e.life*0.22, 0, Math.PI*2);
+        ctx.strokeStyle=`rgba(255,210,120,${0.15 + e.life*0.32})`;
         ctx.lineWidth=1;
         ctx.stroke();
 
-        // dot (the “τελεία”)
+        // dot
         ctx.beginPath();
-        ctx.arc(e.x,e.y, 2.2 + e.energy*1.7, 0, Math.PI*2);
-        ctx.fillStyle=`rgba(255,245,210,${0.24 + e.life*0.40})`;
+        ctx.arc(e.x,e.y, 2.2 + e.energy*1.8, 0, Math.PI*2);
+        ctx.fillStyle=`rgba(255,245,210,${0.22 + e.life*0.42})`;
         ctx.fill();
       }
-      events = events.filter(e=>e.life>0.06);
+
+      // remove dead events (edges keep decaying on their own)
+      events = events.filter(e=>e.life>0.05);
+    }
+
+    function relinkEdgeRefsAfterCulling(){
+      // when events array is filtered, old object refs may remain in edgeMemory;
+      // keep edges only if their endpoints still exist by id, otherwise let them fade with no endpoints.
+      const byId = new Map(events.map(e=>[e.id,e]));
+      for(const [k, rec] of edgeMemory.entries()){
+        const ids = k.split("-").map(Number);
+        const a = byId.get(ids[0]);
+        const b = byId.get(ids[1]);
+        if(a && b){
+          rec.a = a; rec.b = b;
+        } else {
+          // endpoints gone: keep record but null refs; it will decay away
+          rec.a = a || null;
+          rec.b = b || null;
+        }
+      }
     }
 
     function render(){
-      // temporal trace background
-      ctx.fillStyle="rgba(4,6,10,0.22)";
+      // temporal trace
+      ctx.fillStyle="rgba(4,6,10,0.20)";
       ctx.fillRect(0,0,w,h);
 
       drawField();
       interactEvents();
 
-      // meaning first: show relations even before emergence
-      drawMeaningLinks();
+      // build active relations, update memory, then draw memory (persisted meaning)
+      const { activeEdges, triadPairs } = buildActiveEdgesAndTriads();
+      updateEdgeMemory(activeEdges, triadPairs);
+      drawEdgeMemory();
 
+      // emergence is a higher-order readout of metastability
       const comps = computeClusters();
       drawEmergence(comps);
 
       drawShockwaves();
       drawEvents();
+      relinkEdgeRefsAfterCulling();
 
       t += 0.01;
       requestAnimationFrame(render);
