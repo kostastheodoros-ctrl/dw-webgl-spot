@@ -5,38 +5,24 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Design as Event — Morphogenetic Field</title>
   <style>
-    html,body{
-      margin:0;
-      height:100%;
-      background:#04060a;
-      overflow:hidden;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      color:white;
-    }
-    canvas{ display:block; }
+    html,body{margin:0;height:100%;background:#04060a;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;}
+    canvas{display:block;}
     .ui{
-      position:fixed;
-      top:14px;
-      left:14px;
-      background:rgba(0,0,0,.35);
-      backdrop-filter:blur(6px);
-      padding:10px 14px;
-      border-radius:12px;
-      font-size:13px;
-      line-height:1.35;
-      max-width: 360px;
+      position:fixed;top:14px;left:14px;max-width:420px;
+      background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
+      padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.35;
+      border:1px solid rgba(160,200,255,.16);
     }
-    .ui b{ letter-spacing:.2px; }
-    .embed .ui{ display:none; }
+    .ui b{letter-spacing:.2px;}
   </style>
 </head>
 
 <body>
   <div class="ui">
     <b>DESIGN AS EVENT — MORPHOGENETIC FIELD</b><br>
-    Move → baseline deformation<br>
-    Click → event birth (energy/radius/lifetime/phase)<br>
-    Emergence → stable topology (cluster ≥ 3 + stability time)
+    Move → baseline field drift<br>
+    Click → event birth (energy / radius / lifetime / phase)<br>
+    Meaning → dots connect by interaction; polygon appears only from metastable clusters (≥3)
   </div>
 
   <canvas id="c"></canvas>
@@ -45,31 +31,24 @@
     const canvas = document.getElementById("c");
     const ctx = canvas.getContext("2d");
 
-    let w = 0, h = 0;
-    function resize(){
-      w = canvas.width = innerWidth;
-      h = canvas.height = innerHeight;
-    }
-    resize();
+    let w=0,h=0;
+    function resize(){ w=canvas.width=innerWidth; h=canvas.height=innerHeight; }
     addEventListener("resize", resize);
+    resize();
 
-    // ---------- Core state ----------
     let t = 0;
-
     let mouse = { x: innerWidth/2, y: innerHeight/2 };
-    addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+    addEventListener("mousemove",(e)=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
 
     let nextId = 1;
     let events = [];
     let shockwaves = [];
 
-    // Cluster stability memory (keyed by component signature)
-    const clusterMemory = new Map(); // key -> {frames, lastSeen, stable}
-    const STABILITY_FRAMES = 70;     // ~1.1s @ 60fps
+    // Cluster stability memory: signature -> frames
+    const clusterMemory = new Map();
+    const STABILITY_FRAMES = 70;
 
-    // ---------- Parameters (tight + explicit) ----------
-    const PARAMS = {
-      // event birth
+    const P = {
       energyMin: 0.55,
       energyMax: 1.45,
       radiusBase: 70,
@@ -78,359 +57,313 @@
       lifeK: 0.35,
       phaseSpeed: 0.015,
 
-      // attractor field
-      attractorSoftening: 2200,   // prevents singularity
-      attractorGain: 1.0,         // overall strength
-      attractorLocalGain: 0.22,   // how much attractor displaces ring points
+      // field
+      attractorSoftening: 2400,
+      attractorGain: 1.0,
+      attractorLocalGain: 0.22,
+      mouseGain: 0.18,
 
-      // mouse baseline field (kept, but subordinated)
-      mouseGain: 0.20,
+      // interaction
+      interactLinkScale: 0.55,
+      fusionThreshold: 0.28,
+      annihThreshold: 0.95,
+      dampFactor: 0.86,
 
-      // interactions
-      interactLinkScale: 0.55,    // how close to count as "interaction"
-      fusionThreshold: 0.28,      // |Ea-Eb| < fusionThreshold
-      annihThreshold: 0.95,       // |Ea-Eb| > annihThreshold => annihilation
-      dampFactor: 0.86,           // otherwise: mutual damping
+      // “meaning” links (DOTS CONNECT)
+      linkDistanceFactor: 0.52,     // relative to (rA+rB)
+      linkAlphaMax: 0.34,
+      linkWidth: 1,
 
-      // rendering
-      rings: 26,
-      ringPoints: 170,
-      ringSpacing: 14,
-      ringStart: 70
+      // background field rings (context)
+      rings: 22,
+      ringPoints: 150,
+      ringSpacing: 16,
+      ringStart: 60
     };
 
-    // ---------- Input: Event Birth ----------
-    addEventListener("click", (e) => createEvent(e.clientX, e.clientY));
+    addEventListener("click",(e)=>createEvent(e.clientX,e.clientY));
 
-    function createEvent(x, y){
-      const energy = PARAMS.energyMin + Math.random() * (PARAMS.energyMax - PARAMS.energyMin);
-      const radius = PARAMS.radiusBase + PARAMS.radiusK * energy;
-      const lifetime = Math.min(1.0, PARAMS.lifeBase + PARAMS.lifeK * energy);
+    function createEvent(x,y){
+      const energy = P.energyMin + Math.random()*(P.energyMax-P.energyMin);
+      const radius = P.radiusBase + P.radiusK*energy;
+      const lifetime = Math.min(1.0, P.lifeBase + P.lifeK*energy);
 
       events.push({
         id: nextId++,
-        x, y,
+        x,y,
         energy,
         radius,
-        life: lifetime,   // decays each frame
-        age: 0,           // frames since birth
-        phase: Math.random() * Math.PI * 2
+        life: lifetime,
+        age: 0,
+        phase: Math.random()*Math.PI*2
       });
     }
 
-    // ---------- Field: Attractor Vector (cause → effect: events curve local topology) ----------
-    function attractorVectorAt(px, py){
-      let vx = 0, vy = 0;
+    function spawnShockwave(x,y,amp=1.0,speed=0.8){
+      shockwaves.push({ x,y, r:6, amp, speed, life:1.0 });
+    }
 
+    function attractorVectorAt(px,py){
+      let vx=0, vy=0;
       for(const e of events){
-        // Attractor amplitude fades with event life (temporary topology)
         const dx = e.x - px;
         const dy = e.y - py;
-        const d2 = dx*dx + dy*dy + PARAMS.attractorSoftening;
+        const d2 = dx*dx + dy*dy + P.attractorSoftening;
         const d = Math.sqrt(d2);
-
-        // strength grows with energy, fades with life
         const strength = (e.energy * e.life) / d2;
-
-        // pull direction (normalized)
-        vx += (dx / d) * strength;
-        vy += (dy / d) * strength;
+        vx += (dx/d) * strength;
+        vy += (dy/d) * strength;
       }
-
-      // gain applied outside as needed
       return { vx, vy };
     }
 
-    // ---------- Interaction Logic (fusion / annihilation / damping) ----------
     function interactEvents(){
       for(let i=0;i<events.length;i++){
         for(let j=i+1;j<events.length;j++){
-          const a = events[i];
-          const b = events[j];
+          const a=events[i], b=events[j];
+          const dx=a.x-b.x, dy=a.y-b.y;
+          const d=Math.sqrt(dx*dx+dy*dy);
 
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const d = Math.sqrt(dx*dx + dy*dy);
-
-          const interactDistance = (a.radius + b.radius) * PARAMS.interactLinkScale;
-
+          const interactDistance = (a.radius + b.radius) * P.interactLinkScale;
           if(d < interactDistance){
             const de = Math.abs(a.energy - b.energy);
 
-            // 1) fusion
-            if(de < PARAMS.fusionThreshold){
-              // merge b into a (topological aggregation)
-              a.energy = a.energy + b.energy * 0.6;
-              a.radius = a.radius + 18 + b.energy * 10;
+            if(de < P.fusionThreshold){
+              a.energy = a.energy + b.energy*0.6;
+              a.radius = a.radius + 18 + b.energy*10;
               a.life = Math.min(1.0, a.life + 0.12);
-              a.phase = (a.phase + b.phase) * 0.5;
-
-              // mild shockwave as "registration" of fusion
-              spawnShockwave((a.x+b.x)/2, (a.y+b.y)/2, 1.0, 0.55);
-
+              a.phase = (a.phase + b.phase)*0.5;
+              spawnShockwave((a.x+b.x)/2,(a.y+b.y)/2, 1.0, 0.55);
               b.life = 0;
-            }
-            // 3) annihilation
-            else if(de > PARAMS.annihThreshold){
-              // strong shockwave and dissolution (loss of coherent topology)
-              spawnShockwave((a.x+b.x)/2, (a.y+b.y)/2, 1.6 + de*0.4, 1.05);
-              a.life = 0;
-              b.life = 0;
-            }
-            // otherwise: mutual damping
-            else{
-              a.life *= PARAMS.dampFactor;
-              b.life *= PARAMS.dampFactor;
+            } else if(de > P.annihThreshold){
+              spawnShockwave((a.x+b.x)/2,(a.y+b.y)/2, 1.6 + de*0.4, 1.05);
+              a.life = 0; b.life = 0;
+            } else {
+              a.life *= P.dampFactor;
+              b.life *= P.dampFactor;
             }
           }
         }
       }
     }
 
-    function spawnShockwave(x, y, amp=1.0, speed=0.8){
-      shockwaves.push({
-        x, y,
-        r: 6,
-        amp,
-        speed,
-        life: 1.0
-      });
-    }
-
-    // ---------- Emergence: Cluster stability ≥ 3 ----------
     function computeClusters(){
-      // Build adjacency using same interaction notion (but slightly tighter)
       const n = events.length;
-      const adj = Array.from({length:n}, () => []);
-
+      const adj = Array.from({length:n},()=>[]);
       for(let i=0;i<n;i++){
         for(let j=i+1;j<n;j++){
-          const a = events[i], b = events[j];
-          const dx = a.x - b.x, dy = a.y - b.y;
-          const d = Math.sqrt(dx*dx + dy*dy);
-          const linkDist = (a.radius + b.radius) * (PARAMS.interactLinkScale * 0.92);
+          const a=events[i], b=events[j];
+          const dx=a.x-b.x, dy=a.y-b.y;
+          const d=Math.sqrt(dx*dx+dy*dy);
+          const linkDist = (a.radius + b.radius) * (P.interactLinkScale*0.92);
           if(d < linkDist){
-            adj[i].push(j);
-            adj[j].push(i);
+            adj[i].push(j); adj[j].push(i);
           }
         }
       }
 
-      // Connected components (BFS)
       const seen = new Array(n).fill(false);
-      const components = [];
+      const comps = [];
 
       for(let i=0;i<n;i++){
         if(seen[i]) continue;
-        const q = [i];
-        seen[i] = true;
-        const compIdx = [];
-
-        while(q.length){
-          const u = q.pop();
-          compIdx.push(u);
+        const stack=[i]; seen[i]=true;
+        const idx=[];
+        while(stack.length){
+          const u=stack.pop();
+          idx.push(u);
           for(const v of adj[u]){
-            if(!seen[v]){
-              seen[v]=true;
-              q.push(v);
-            }
+            if(!seen[v]){ seen[v]=true; stack.push(v); }
           }
         }
-
-        if(compIdx.length >= 3){
-          const ids = compIdx.map(k => events[k].id).sort((a,b)=>a-b);
+        if(idx.length >= 3){
+          const ids = idx.map(k=>events[k].id).sort((a,b)=>a-b);
           const key = ids.join("-");
-          components.push({ key, idx: compIdx });
+          comps.push({ key, idx });
         }
       }
 
-      // Update stability memory
-      const now = Math.floor(t*10000); // monotonic-ish token
-      for(const comp of components){
-        const prev = clusterMemory.get(comp.key) || { frames: 0, lastSeen: 0, stable: false };
-        prev.frames += 1;
-        prev.lastSeen = now;
-        if(prev.frames >= STABILITY_FRAMES) prev.stable = true;
-        clusterMemory.set(comp.key, prev);
+      // update stability memory
+      const seenNow = new Set(comps.map(c=>c.key));
+      for(const c of comps){
+        const rec = clusterMemory.get(c.key) || {frames:0, stable:false};
+        rec.frames += 1;
+        if(rec.frames >= STABILITY_FRAMES) rec.stable = true;
+        clusterMemory.set(c.key, rec);
       }
-
-      // Decay clusters not seen recently
-      for(const [key, rec] of clusterMemory.entries()){
-        if(rec.lastSeen !== now){
+      for(const [key,rec] of clusterMemory.entries()){
+        if(!seenNow.has(key)){
           rec.frames = Math.max(0, rec.frames - 2);
-          if(rec.frames < STABILITY_FRAMES * 0.65) rec.stable = false;
+          if(rec.frames < STABILITY_FRAMES*0.65) rec.stable = false;
           if(rec.frames === 0) clusterMemory.delete(key);
         }
       }
 
-      return components.map(c => ({
-        ...c,
-        stable: (clusterMemory.get(c.key)?.stable) === true
-      }));
+      return comps.map(c=>({ ...c, stable: clusterMemory.get(c.key)?.stable === true }));
     }
 
-    // Convex hull for emergent “stable topology” contour (simple + deterministic)
     function convexHull(points){
       if(points.length <= 2) return points.slice();
+      const pts = points.slice().sort((p,q)=>(p.x-q.x)||(p.y-q.y));
+      const cross=(o,a,b)=> (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
 
-      // sort by x then y
-      const pts = points.slice().sort((p,q) => (p.x-q.x) || (p.y-q.y));
-      const cross = (o,a,b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
-
-      const lower = [];
+      const lower=[];
       for(const p of pts){
-        while(lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
+        while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],p)<=0) lower.pop();
         lower.push(p);
       }
-
-      const upper = [];
+      const upper=[];
       for(let i=pts.length-1;i>=0;i--){
-        const p = pts[i];
-        while(upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
+        const p=pts[i];
+        while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],p)<=0) upper.pop();
         upper.push(p);
       }
-
-      upper.pop();
-      lower.pop();
+      upper.pop(); lower.pop();
       return lower.concat(upper);
     }
 
-    // ---------- Rendering ----------
     function drawField(){
-      const cx = w/2, cy = h/2;
-
-      for(let r=0;r<PARAMS.rings;r++){
-        const baseRadius = PARAMS.ringStart + r * PARAMS.ringSpacing;
-
+      const cx=w/2, cy=h/2;
+      for(let r=0;r<P.rings;r++){
+        const baseRadius = P.ringStart + r*P.ringSpacing;
         ctx.beginPath();
-        for(let i=0;i<PARAMS.ringPoints;i++){
-          const a = (i/PARAMS.ringPoints) * Math.PI*2;
+        for(let i=0;i<P.ringPoints;i++){
+          const a=(i/P.ringPoints)*Math.PI*2;
+          let x=cx + baseRadius*Math.cos(a);
+          let y=cy + baseRadius*Math.sin(a);
 
-          // base ring point
-          let x = cx + baseRadius * Math.cos(a);
-          let y = cy + baseRadius * Math.sin(a);
+          // mouse baseline
+          const mdx = (mouse.x - cx)/Math.max(1,cx);
+          const mdy = (mouse.y - cy)/Math.max(1,cy);
+          x += mdx*baseRadius*P.mouseGain;
+          y += mdy*baseRadius*P.mouseGain;
 
-          // baseline mouse deformation (kept, but secondary)
-          const mdx = (mouse.x - cx) / Math.max(1, cx);
-          const mdy = (mouse.y - cy) / Math.max(1, cy);
-          x += mdx * baseRadius * PARAMS.mouseGain;
-          y += mdy * baseRadius * PARAMS.mouseGain;
+          // breathing ripple
+          x += Math.sin(a*3 + t + r*0.12)*baseRadius*0.07;
+          y += Math.cos(a*4 + t + r*0.12)*baseRadius*0.07;
 
-          // subtle intrinsic ripple (system breathing)
-          x += Math.sin(a*3 + t + r*0.12) * baseRadius * 0.075;
-          y += Math.cos(a*4 + t + r*0.12) * baseRadius * 0.075;
+          // event attractor field
+          const fv=attractorVectorAt(x,y);
+          x += fv.vx * baseRadius * P.attractorGain * P.attractorLocalGain;
+          y += fv.vy * baseRadius * P.attractorGain * P.attractorLocalGain;
 
-          // EVENT ATTRACTOR FIELD: events curve local topology temporarily
-          const fv = attractorVectorAt(x, y);
-          x += fv.vx * baseRadius * PARAMS.attractorGain * PARAMS.attractorLocalGain;
-          y += fv.vy * baseRadius * PARAMS.attractorGain * PARAMS.attractorLocalGain;
-
-          if(i===0) ctx.moveTo(x,y);
-          else ctx.lineTo(x,y);
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
         }
         ctx.closePath();
-
-        // slightly denser toward outer rings
-        const alpha = 0.12 + (r / PARAMS.rings) * 0.33;
-        ctx.strokeStyle = `rgba(140,210,255,${alpha})`;
-        ctx.lineWidth = 1;
+        const alpha=0.10+(r/P.rings)*0.26;
+        ctx.strokeStyle=`rgba(140,210,255,${alpha})`;
+        ctx.lineWidth=1;
         ctx.stroke();
       }
     }
 
-    function drawEvents(){
-      // Update & draw events as relational markers (NOT polygons)
-      for(const e of events){
-        e.age += 1;
-        e.phase += PARAMS.phaseSpeed;
-
-        // temporary topology: decay life
-        e.life *= 0.986;
-
-        // slight orbit drift (keeps system alive without “drawing shapes directly”)
-        const drift = 0.10 * e.energy * e.life;
-        e.x += Math.cos(e.phase) * drift;
-        e.y += Math.sin(e.phase*0.9) * drift;
-
-        // clamp inside canvas
-        e.x = Math.max(10, Math.min(w-10, e.x));
-        e.y = Math.max(10, Math.min(h-10, e.y));
-
-        // draw halo
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.radius * e.life * 0.23, 0, Math.PI*2);
-        ctx.strokeStyle = `rgba(255,210,120,${0.18 + e.life*0.28})`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // draw core
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, 2.0 + e.energy*1.8, 0, Math.PI*2);
-        ctx.fillStyle = `rgba(255,235,190,${0.25 + e.life*0.35})`;
-        ctx.fill();
+    // 핵심: “τελείες να ενώνονται” -> relational links
+    function drawMeaningLinks(){
+      for(let i=0;i<events.length;i++){
+        for(let j=i+1;j<events.length;j++){
+          const a=events[i], b=events[j];
+          const dx=a.x-b.x, dy=a.y-b.y;
+          const d=Math.sqrt(dx*dx+dy*dy);
+          const maxD = (a.radius + b.radius) * P.linkDistanceFactor;
+          if(d < maxD){
+            const closeness = 1 - (d / Math.max(1,maxD));
+            const alpha = Math.min(P.linkAlphaMax, closeness * (0.18 + 0.35*Math.min(a.life,b.life)));
+            ctx.beginPath();
+            ctx.moveTo(a.x,a.y);
+            ctx.lineTo(b.x,b.y);
+            ctx.strokeStyle = `rgba(255,235,190,${alpha})`;
+            ctx.lineWidth = P.linkWidth;
+            ctx.stroke();
+          }
+        }
       }
+    }
 
-      events = events.filter(e => e.life > 0.06);
+    function drawEmergence(components){
+      for(const comp of components){
+        if(!comp.stable) continue;
+
+        const pts = comp.idx.map(k=>({x:events[k].x,y:events[k].y}));
+        const hull = convexHull(pts);
+        if(hull.length < 3) continue;
+
+        const cx = hull.reduce((s,p)=>s+p.x,0)/hull.length;
+        const cy = hull.reduce((s,p)=>s+p.y,0)/hull.length;
+
+        ctx.beginPath();
+        for(let i=0;i<hull.length;i++){
+          const p=hull[i];
+          const dx=p.x-cx, dy=p.y-cy;
+          const mag=Math.sqrt(dx*dx+dy*dy)||1;
+          const expand = 10 + 14*Math.sin(t*1.2 + i*0.7);
+          const x=p.x + (dx/mag)*expand;
+          const y=p.y + (dy/mag)*expand;
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.closePath();
+
+        // This is the ONLY allowed polygon: emergent metastable contour
+        ctx.fillStyle="rgba(120,210,255,0.045)";
+        ctx.fill();
+        ctx.strokeStyle="rgba(120,210,255,0.26)";
+        ctx.lineWidth=1;
+        ctx.stroke();
+      }
     }
 
     function drawShockwaves(){
       for(const s of shockwaves){
-        s.r += 5.5 * s.speed;
+        s.r += 5.5*s.speed;
         s.life *= 0.965;
-
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-        ctx.strokeStyle = `rgba(255,170,120,${s.life * 0.55 * s.amp})`;
-        ctx.lineWidth = 1;
+        ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(255,170,120,${s.life*0.55*s.amp})`;
+        ctx.lineWidth=1;
         ctx.stroke();
       }
-      shockwaves = shockwaves.filter(s => s.life > 0.05);
+      shockwaves = shockwaves.filter(s=>s.life>0.05);
     }
 
-    function drawEmergence(components){
-      // Stable topology only (cluster ≥3 + stability time)
-      for(const comp of components){
-        if(!comp.stable) continue;
+    function drawEvents(){
+      for(const e of events){
+        e.age += 1;
+        e.phase += P.phaseSpeed;
+        e.life *= 0.986;
 
-        const pts = comp.idx.map(k => ({ x: events[k].x, y: events[k].y }));
-        const hull = convexHull(pts);
+        // micro-drift (keeps the graph alive)
+        const drift = 0.10*e.energy*e.life;
+        e.x += Math.cos(e.phase)*drift;
+        e.y += Math.sin(e.phase*0.9)*drift;
 
-        if(hull.length < 3) continue;
+        e.x = Math.max(10, Math.min(w-10, e.x));
+        e.y = Math.max(10, Math.min(h-10, e.y));
 
-        // Slight expansion (makes “form” appear as metastable boundary)
-        const cx = hull.reduce((s,p)=>s+p.x,0) / hull.length;
-        const cy = hull.reduce((s,p)=>s+p.y,0) / hull.length;
-
+        // halo
         ctx.beginPath();
-        for(let i=0;i<hull.length;i++){
-          const p = hull[i];
-          const dx = p.x - cx, dy = p.y - cy;
-          const mag = Math.sqrt(dx*dx + dy*dy) || 1;
-          const expand = 10 + 18*Math.sin(t*1.2 + i*0.7);
-          const x = p.x + (dx/mag)*expand;
-          const y = p.y + (dy/mag)*expand;
-
-          if(i===0) ctx.moveTo(x,y);
-          else ctx.lineTo(x,y);
-        }
-        ctx.closePath();
-
-        ctx.fillStyle = "rgba(120,210,255,0.045)";
-        ctx.fill();
-
-        ctx.strokeStyle = "rgba(120,210,255,0.22)";
-        ctx.lineWidth = 1;
+        ctx.arc(e.x,e.y, e.radius*e.life*0.23, 0, Math.PI*2);
+        ctx.strokeStyle=`rgba(255,210,120,${0.16 + e.life*0.30})`;
+        ctx.lineWidth=1;
         ctx.stroke();
+
+        // dot (the “τελεία”)
+        ctx.beginPath();
+        ctx.arc(e.x,e.y, 2.2 + e.energy*1.7, 0, Math.PI*2);
+        ctx.fillStyle=`rgba(255,245,210,${0.24 + e.life*0.40})`;
+        ctx.fill();
       }
+      events = events.filter(e=>e.life>0.06);
     }
 
     function render(){
-      // background persistence (temporal trace)
-      ctx.fillStyle = "rgba(4,6,10,0.22)";
-      ctx.fillRect(0, 0, w, h);
+      // temporal trace background
+      ctx.fillStyle="rgba(4,6,10,0.22)";
+      ctx.fillRect(0,0,w,h);
 
       drawField();
       interactEvents();
+
+      // meaning first: show relations even before emergence
+      drawMeaningLinks();
 
       const comps = computeClusters();
       drawEmergence(comps);
@@ -441,7 +374,6 @@
       t += 0.01;
       requestAnimationFrame(render);
     }
-
     render();
   </script>
 </body>
