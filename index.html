@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Design as Event — φ-Lock Persistence</title>
+  <title>Design as Event — φ-Archive Layers</title>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#eaf2ff;background:#04060a;}
     canvas{display:block;}
     .ui{
-      position:fixed;top:14px;left:14px;max-width:720px;
+      position:fixed;top:14px;left:14px;max-width:780px;
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
@@ -19,7 +19,7 @@
       background:rgba(0,0,0,.35);backdrop-filter:blur(6px);
       padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.35;
       border:1px solid rgba(160,200,255,.16);
-      min-width:240px;text-align:right;
+      min-width:270px;text-align:right;
     }
   </style>
 </head>
@@ -27,10 +27,10 @@
 <body>
   <div class="ui">
     <b>DESIGN AS EVENT — MORPHOGENETIC FIELD</b><br>
-    Click → event birth • Lines → relations • <b>φ-lock → perceptible duration</b><br>
-    The system actively converges linked pairs to φ-distance and then locks them (not luck-based).
+    Click → event birth • φ-lock becomes easy<br>
+    φ-lock → archived colored trace (long-lived) • next φ-locks use next color (layered palimpsest)
   </div>
-  <div class="hud" id="hud">events: 0<br>links: 0<br>phiLocked: 0</div>
+  <div class="hud" id="hud">events: 0<br>links: 0<br>phiLockedNow: 0<br>archive: 0</div>
 
   <canvas id="c"></canvas>
 
@@ -45,67 +45,82 @@
     resize();
 
     let t=0, frame=0, nextId=1;
-    let mouse = { x: innerWidth/2, y: innerHeight/2 };
-    addEventListener("mousemove",(e)=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
 
-    const PHI = (1 + Math.sqrt(5)) / 2; // 1.618...
-    const INV_PHI = 1 / PHI;            // 0.618...
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    const INV_PHI = 1 / PHI;
 
     const P = {
       // births
-      energyMin: 0.85,
-      energyMax: 2.10,
+      energyMin: 0.90,
+      energyMax: 2.20,
       radiusBase: 110,
       radiusK: 220,
       lifeInit: 1.0,
 
       // background (not black)
-      bgFade: 0.07,
+      bgFade: 0.06,
       bgGlow: 0.30,
       bgVignette: 0.24,
 
       // pulsing ring-field
-      rings: 24,
-      ringPoints: 165,
-      ringSpacing: 15,
-      ringStart: 58,
-      mouseGain: 0.10,
+      rings: 22,
+      ringPoints: 155,
+      ringSpacing: 16,
+      ringStart: 60,
       pulseA: 0.075,
 
       // linking
-      edgeMaxD_factor: 0.95,
+      edgeMaxD_factor: 0.98,
 
-      // base memory
-      edgeDecay: 0.0010,
-      edgeTTL_decay: 0.0011,
-      edgeCharge: 0.10,
-      edgeTTL_gain: 3.2,
+      // φ-lock becomes “relatively easy”
+      phiTolerance: 0.30,       // MUCH wider => easy
+      phiGate: 0.38,            // lower gate => more candidates
+      phiLockFrames: 28,        // fewer frames => faster lock
+      phiSpring: 0.040,
+      phiDamping: 0.86,
 
-      // perspective
-      widthNear: 3.8,
-      widthFar: 0.8,
-      alphaNear: 0.78,
-      alphaFar: 0.08,
-
-      // φ-lock mechanism
-      phiTolerance: 0.18,       // wider: easier convergence
-      phiLockFrames: 55,        // must stay near target for N frames
-      phiSpring: 0.030,         // “pull” strength toward φ target distance
-      phiDamping: 0.86,         // stabilizes oscillation
-      phiLifeFloor: 0.55,       // once locked, event stays perceptible
-      phiLifeRecharge: 0.018,   // per locked edge per frame
-      phiMaxLocksPerEvent: 3,   // prevents infinite life
+      // event persistence when φ-locked
+      baseLifeDecay: 0.989,
+      phiLifeFloor: 0.58,
+      phiLifeRecharge: 0.022,
+      phiMaxLocksPerEvent: 4,
 
       // event motion
-      baseLifeDecay: 0.987,
       phaseSpeed: 0.015,
-      driftK: 0.07
+      driftK: 0.06,
+
+      // drawing
+      widthNear: 3.2,
+      widthFar: 0.7,
+      alphaNear: 0.70,
+      alphaFar: 0.08,
+
+      // archive layer (long time)
+      archiveTTL_init: 1.0,
+      archiveTTL_decay: 0.00055,     // very long: ~1800 frames to fade materially
+      archiveWidth: 3.6,
+      archiveAlpha: 0.55,
+      archiveMax: 220                // prevent infinite memory
     };
 
-    // State
+    // palette for successive φ-lock generations (distinct colors)
+    const PALETTE = [
+      [255,215,120], // gold
+      [120,210,255], // cyan
+      [255,140,200], // magenta
+      [170,255,140], // green
+      [210,160,255], // violet
+      [255,180,120], // orange
+    ];
+    let paletteIndex = 0;
+
+    // state
     let events = [];
-    // edgeMemory key -> {a,b,strength,ttl,phiScore,lockFrames,locked,targetMode}
-    let edgeMemory = new Map();
+    // edgeMemory key -> {a,b,phiScore,lockFrames,locked,targetMode,seenLockedStamp}
+    const edgeMemory = new Map();
+
+    // archive traces: { points:[{x,y}...], ttl, rgb:[r,g,b], width, alpha }
+    let archive = [];
 
     addEventListener("click",(e)=>createEvent(e.clientX,e.clientY));
 
@@ -132,16 +147,14 @@
       return clamp01(x*x);
     }
 
-    // scale-invariant distance ratio: s = d / sqrt(rA*rB)
     function phiScoreAndMode(d, rA, rB){
       const s = d / Math.max(1e-6, Math.sqrt(rA*rB));
       const errPhi = Math.abs(s - PHI);
       const errInv = Math.abs(s - INV_PHI);
       if(errPhi <= errInv){
         return { score: clamp01(1 - (errPhi / P.phiTolerance)), mode: "phi" };
-      } else {
-        return { score: clamp01(1 - (errInv / P.phiTolerance)), mode: "invphi" };
       }
+      return { score: clamp01(1 - (errInv / P.phiTolerance)), mode: "invphi" };
     }
 
     function bentMidpoint(ax,ay,bx,by,amount){
@@ -157,7 +170,7 @@
       const cx=w/2, cy=h/2;
       const grd = ctx.createRadialGradient(cx, cy, Math.min(w,h)*0.05, cx, cy, Math.min(w,h)*0.95);
       grd.addColorStop(0, `rgba(18,28,44,${P.bgGlow})`);
-      grd.addColorStop(0.55, `rgba(6,10,18,0.22)`);
+      grd.addColorStop(0.55, `rgba(6,10,18,0.20)`);
       grd.addColorStop(1, `rgba(4,6,10,${P.bgVignette})`);
       ctx.fillStyle = grd;
       ctx.fillRect(0,0,w,h);
@@ -174,22 +187,15 @@
           const a=(i/P.ringPoints)*Math.PI*2;
           let x=cx + baseRadius*Math.cos(a);
           let y=cy + baseRadius*Math.sin(a);
-
-          const mdx = (mouse.x - cx)/Math.max(1,cx);
-          const mdy = (mouse.y - cy)/Math.max(1,cy);
-          x += mdx*baseRadius*P.mouseGain;
-          y += mdy*baseRadius*P.mouseGain;
-
           const pulse = (Math.sin(t*1.0 + r*0.18) + Math.cos(t*1.35 + a*2.0)) * 0.5;
           x += Math.sin(a*3 + t + r*0.10) * baseRadius * P.pulseA;
           y += Math.cos(a*4 + t + r*0.10) * baseRadius * P.pulseA;
           x += Math.cos(a*2.2 + t) * pulse * 2.0;
           y += Math.sin(a*2.0 + t) * pulse * 2.0;
-
           if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
         }
         ctx.closePath();
-        const alpha=0.07+(r/P.rings)*0.20;
+        const alpha=0.06+(r/P.rings)*0.18;
         ctx.strokeStyle=`rgba(140,210,255,${alpha})`;
         ctx.lineWidth=1;
         ctx.stroke();
@@ -201,18 +207,16 @@
       for(let i=0;i<events.length;i++){
         for(let j=i+1;j<events.length;j++){
           const a=events[i], b=events[j];
-          const dx=a.x-b.x, dy=a.y-b.y;
+          const dx=b.x-a.x, dy=b.y-a.y;
           const d=Math.sqrt(dx*dx+dy*dy);
           const maxD=(a.radius+b.radius)*P.edgeMaxD_factor;
           if(d < maxD){
             const near = depthWeight(d, maxD);
             const {score, mode} = phiScoreAndMode(d, a.radius, b.radius);
-
             const minId=Math.min(a.id,b.id), maxId=Math.max(a.id,b.id);
             const key=`${minId}-${maxId}`;
-
-            const charge = near * (0.55 + 0.45*Math.min(a.life,b.life)) * (1 + 0.9*score);
-            active.push({ key, a, b, d, maxD, near, phiScore: score, phiMode: mode, charge });
+            const charge = near * (0.60 + 0.40*Math.min(a.life,b.life)) * (1 + 0.9*score);
+            active.push({key,a,b,dx,dy,d,maxD,near,phiScore:score,phiMode:mode,charge});
           }
         }
       }
@@ -220,218 +224,218 @@
     }
 
     function updateEdgeMemory(active){
-      // decay memory
-      for(const [k,rec] of edgeMemory.entries()){
-        rec.strength = Math.max(0, rec.strength - P.edgeDecay);
-        rec.ttl = Math.max(0, rec.ttl - P.edgeTTL_decay);
-        // if both endpoints gone, delete
-        if(!rec.a || !rec.b) edgeMemory.delete(k);
-        // if memory fades out and not locked, delete
-        if((rec.strength <= 0.001 || rec.ttl <= 0.001) && !rec.locked) edgeMemory.delete(k);
-      }
-
-      // charge active edges + carry best phiScore/mode
       for(const e of active){
         const rec = edgeMemory.get(e.key) || {
-          a: e.a, b: e.b,
-          strength: 0, ttl: 0,
-          phiScore: 0, targetMode: e.phiMode,
-          lockFrames: 0, locked: false
+          a:e.a, b:e.b,
+          phiScore: 0,
+          targetMode: e.phiMode,
+          lockFrames: 0,
+          locked: false,
+          seenLockedStamp: false
         };
-        rec.a = e.a; rec.b = e.b;
-        // keep the mode that yields higher score more often
+        rec.a=e.a; rec.b=e.b;
         if(e.phiScore > rec.phiScore){
           rec.targetMode = e.phiMode;
         }
         rec.phiScore = Math.max(rec.phiScore, e.phiScore);
-
-        rec.strength = Math.min(1.0, rec.strength + P.edgeCharge * e.charge);
-        rec.ttl = Math.min(1.0, rec.ttl + P.edgeTTL_gain * 0.01 * e.charge);
-
         edgeMemory.set(e.key, rec);
       }
     }
 
-    // φ-lock: actively move linked pairs toward target distance
     function applyPhiConvergenceAndLock(active){
-      let lockedCount = 0;
+      let lockedNow = 0;
 
       for(const e of active){
         const rec = edgeMemory.get(e.key);
         if(!rec || !rec.a || !rec.b) continue;
 
-        // Choose φ target based on stored mode
-        const a = rec.a, b = rec.b;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+        const a=rec.a, b=rec.b;
+        const dx=b.x-a.x, dy=b.y-a.y;
+        const dist=Math.sqrt(dx*dx+dy*dy) || 1;
 
-        const base = Math.sqrt(a.radius * b.radius);
-        const target = (rec.targetMode === "invphi") ? (INV_PHI * base) : (PHI * base);
+        const base = Math.sqrt(a.radius*b.radius);
+        const target = (rec.targetMode === "invphi") ? (INV_PHI*base) : (PHI*base);
 
-        // How close are we (scale-invariant)
         const err = Math.abs(dist - target) / Math.max(1, target);
-        const score = clamp01(1 - (err / P.phiTolerance)); // 0..1
+        const score = clamp01(1 - (err / P.phiTolerance));
+        rec.phiScore = Math.max(rec.phiScore, score);
 
-        // Only “work” if relationship exists + score is nontrivial
-        if(score > 0.08){
-          // spring toward target distance: move both endpoints opposite directions
-          const nx = dx / dist;
-          const ny = dy / dist;
-          const delta = (dist - target);
+        // convergence when the relation is at least a modest φ-candidate
+        if(score >= P.phiGate){
+          const nx=dx/dist, ny=dy/dist;
+          const delta=(dist-target);
+          const pull = (-delta) * P.phiSpring * (0.5 + 0.5*score);
 
-          // apply to velocities (smooth, not teleport)
-          const pull = -delta * P.phiSpring * score;
-
-          // damp
           a.vx *= P.phiDamping; a.vy *= P.phiDamping;
           b.vx *= P.phiDamping; b.vy *= P.phiDamping;
 
-          a.vx -= nx * pull; a.vy -= ny * pull;
-          b.vx += nx * pull; b.vy += ny * pull;
+          a.vx -= nx*pull; a.vy -= ny*pull;
+          b.vx += nx*pull; b.vy += ny*pull;
 
           // lock accumulation
-          if(score >= 0.72){
-            rec.lockFrames += 1;
-          } else {
-            rec.lockFrames = Math.max(0, rec.lockFrames - 1);
-          }
+          if(score >= 0.70) rec.lockFrames += 1;
+          else rec.lockFrames = Math.max(0, rec.lockFrames - 1);
 
-          // lock condition
           if(!rec.locked && rec.lockFrames >= P.phiLockFrames){
             rec.locked = true;
-            // prevent infinite locking
             a.lockCount = (a.lockCount||0) + 1;
             b.lockCount = (b.lockCount||0) + 1;
           }
-
-          // if locked, sustain
-          if(rec.locked){
-            lockedCount++;
-
-            // keep events perceptible (your requirement)
-            if(a.lockCount <= P.phiMaxLocksPerEvent){
-              a.life = Math.max(a.life, P.phiLifeFloor);
-              a.life = Math.min(1.0, a.life + P.phiLifeRecharge * (0.6 + 0.4*score));
-            }
-            if(b.lockCount <= P.phiMaxLocksPerEvent){
-              b.life = Math.max(b.life, P.phiLifeFloor);
-              b.life = Math.min(1.0, b.life + P.phiLifeRecharge * (0.6 + 0.4*score));
-            }
-
-            // also keep the edge memory strong
-            rec.ttl = Math.min(1.0, rec.ttl + 0.012);
-            rec.strength = Math.min(1.0, rec.strength + 0.010);
-            rec.phiScore = Math.max(rec.phiScore, score);
-          } else {
-            // not locked yet: keep score updated so drawing becomes increasingly gold as it converges
-            rec.phiScore = Math.max(rec.phiScore, score);
-          }
         } else {
-          // if no meaningful score, bleed lockFrames
           rec.lockFrames = Math.max(0, rec.lockFrames - 1);
+        }
+
+        if(rec.locked){
+          lockedNow++;
+          // keep events perceptible
+          if(a.lockCount <= P.phiMaxLocksPerEvent){
+            a.life = Math.max(a.life, P.phiLifeFloor);
+            a.life = Math.min(1.0, a.life + P.phiLifeRecharge * (0.7 + 0.3*score));
+          }
+          if(b.lockCount <= P.phiMaxLocksPerEvent){
+            b.life = Math.max(b.life, P.phiLifeFloor);
+            b.life = Math.min(1.0, b.life + P.phiLifeRecharge * (0.7 + 0.3*score));
+          }
+
+          // ARCHIVE STAMP: only once when it first locks
+          if(!rec.seenLockedStamp){
+            rec.seenLockedStamp = true;
+            stampArchiveTrace(a, b, rec.phiScore);
+          }
         }
       }
 
-      return lockedCount;
+      return lockedNow;
+    }
+
+    function stampArchiveTrace(a, b, phiScore){
+      const rgb = PALETTE[paletteIndex % PALETTE.length];
+      paletteIndex++;
+
+      // create a richer trace: sample a curved polyline between a and b
+      const points = [];
+      const steps = 28;
+      const mp = bentMidpoint(a.x,a.y,b.x,b.y, 140*(0.35+0.65*phiScore));
+
+      for(let i=0;i<=steps;i++){
+        const u = i/steps;
+        // quadratic Bezier interpolation
+        const x = (1-u)*(1-u)*a.x + 2*(1-u)*u*mp.x + u*u*b.x;
+        const y = (1-u)*(1-u)*a.y + 2*(1-u)*u*mp.y + u*u*b.y;
+        points.push({x,y});
+      }
+
+      archive.push({
+        points,
+        ttl: P.archiveTTL_init,
+        rgb,
+        width: P.archiveWidth * (0.95 + 0.35*phiScore),
+        alpha: P.archiveAlpha * (0.85 + 0.30*phiScore)
+      });
+
+      // cap archive size
+      if(archive.length > P.archiveMax){
+        archive.splice(0, archive.length - P.archiveMax);
+      }
+    }
+
+    function drawArchive(){
+      for(const tr of archive){
+        const a = tr.alpha * tr.ttl;
+        if(a <= 0.01) continue;
+
+        ctx.beginPath();
+        for(let i=0;i<tr.points.length;i++){
+          const p=tr.points[i];
+          if(i===0) ctx.moveTo(p.x,p.y);
+          else ctx.lineTo(p.x,p.y);
+        }
+        ctx.strokeStyle = `rgba(${tr.rgb[0]},${tr.rgb[1]},${tr.rgb[2]},${Math.min(0.85,a)})`;
+        ctx.lineWidth = tr.width;
+        ctx.stroke();
+      }
+    }
+
+    function stepArchive(){
+      for(const tr of archive){
+        tr.ttl = Math.max(0, tr.ttl - P.archiveTTL_decay);
+      }
+      archive = archive.filter(tr=>tr.ttl > 0.002);
     }
 
     function drawLinks(active){
       for(const e of active){
-        const a = e.a, b = e.b;
-        const mem = edgeMemory.get(e.key);
-
+        const a=e.a, b=e.b;
         const baseW = lerp(P.widthFar, P.widthNear, e.near);
         const baseA = lerp(P.alphaFar, P.alphaNear, e.near);
-        const m = mem ? (0.35 + 0.65*mem.strength) : 0.6;
 
-        let width = baseW * (0.85 + 0.55*m);
-        let alpha = Math.min(0.92, baseA * m);
+        const rec = edgeMemory.get(e.key);
+        const ps = rec ? rec.phiScore : e.phiScore;
+        const locked = rec ? rec.locked === true : false;
 
-        const ps = mem ? (mem.phiScore||0) : e.phiScore;
-        const isLocked = mem ? mem.locked === true : false;
+        let width = baseW;
+        let alpha = Math.min(0.90, baseA);
 
-        const mp = bentMidpoint(a.x,a.y,b.x,b.y, (110*e.near) * (1 + 0.4*ps));
+        const mp=bentMidpoint(a.x,a.y,b.x,b.y, 110*e.near*(1+0.35*ps));
 
         ctx.beginPath();
         ctx.moveTo(a.x,a.y);
         ctx.quadraticCurveTo(mp.x, mp.y, b.x, b.y);
 
-        if(isLocked){
-          // unmistakable gold
-          ctx.strokeStyle = `rgba(255,215,120,${Math.min(0.98, alpha*1.45)})`;
-          ctx.lineWidth = width * 2.8;
-          ctx.stroke();
-
-          // lock marker
-          ctx.beginPath();
-          ctx.arc(mp.x, mp.y, 5.5 + 4.0*ps, 0, Math.PI*2);
-          ctx.fillStyle = `rgba(255,215,120,0.85)`;
-          ctx.fill();
-        } else if(ps > 0.45){
-          // warm candidate
-          ctx.strokeStyle = `rgba(255,225,160,${Math.min(0.95, alpha*(1+0.4*ps))})`;
-          ctx.lineWidth = width * (1.2 + 0.9*ps);
-          ctx.stroke();
+        if(locked){
+          ctx.strokeStyle = `rgba(255,215,120,${Math.min(0.98, alpha*1.55)})`;
+          ctx.lineWidth = width * 2.2;
+        } else if(ps >= P.phiGate){
+          ctx.strokeStyle = `rgba(255,230,165,${Math.min(0.95, alpha*(1+0.6*ps))})`;
+          ctx.lineWidth = width * (1.15 + 0.9*ps);
         } else {
-          // normal pale
           ctx.strokeStyle = `rgba(255,250,220,${alpha})`;
           ctx.lineWidth = width;
-          ctx.stroke();
         }
+        ctx.stroke();
       }
     }
 
     function stepEvents(){
       for(const e of events){
-        // decay (φ-lock will recharge)
         e.life *= P.baseLifeDecay;
-
-        // micro drift + apply velocity from φ-spring
         e.phase += P.phaseSpeed;
-        const drift = P.driftK * e.energy * e.life;
 
+        const drift = P.driftK * e.energy * e.life;
         e.vx += Math.cos(e.phase) * drift * 0.06;
         e.vy += Math.sin(e.phase*0.9) * drift * 0.06;
 
-        // integrate
         e.x += e.vx;
         e.y += e.vy;
 
-        // mild friction
         e.vx *= 0.985;
         e.vy *= 0.985;
 
-        // bounds
         if(e.x < 12){ e.x=12; e.vx *= -0.6; }
         if(e.y < 12){ e.y=12; e.vy *= -0.6; }
         if(e.x > w-12){ e.x=w-12; e.vx *= -0.6; }
         if(e.y > h-12){ e.y=h-12; e.vy *= -0.6; }
       }
-
       events = events.filter(e=>e.life > 0.03);
     }
 
     function drawEvents(){
       for(const e of events){
-        // halo
         ctx.beginPath();
         ctx.arc(e.x,e.y, e.radius*e.life*0.14, 0, Math.PI*2);
         ctx.strokeStyle = `rgba(255,210,120,${0.16 + 0.34*e.life})`;
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // dot
         ctx.beginPath();
-        ctx.arc(e.x,e.y, 2.8 + 2.2*e.energy, 0, Math.PI*2);
+        ctx.arc(e.x,e.y, 2.9 + 2.2*e.energy, 0, Math.PI*2);
         ctx.fillStyle = `rgba(255,245,210,${0.22 + 0.55*e.life})`;
         ctx.fill();
 
-        // if locked participates, aura
         if((e.lockCount||0) > 0){
-          const a = Math.min(0.85, 0.25 + 0.25*(e.lockCount||0));
+          const a = Math.min(0.85, 0.22 + 0.18*(e.lockCount||0));
           ctx.beginPath();
-          ctx.arc(e.x,e.y, 14 + 10*Math.min(3,(e.lockCount||0)), 0, Math.PI*2);
+          ctx.arc(e.x,e.y, 14 + 9*Math.min(4,(e.lockCount||0)), 0, Math.PI*2);
           ctx.strokeStyle = `rgba(255,215,120,${a})`;
           ctx.lineWidth = 1.2;
           ctx.stroke();
@@ -439,7 +443,7 @@
       }
     }
 
-    function relinkEdgeRefs(){
+    function relinkAndPruneEdges(){
       const byId = new Map(events.map(e=>[e.id,e]));
       for(const [k,rec] of edgeMemory.entries()){
         const [aId,bId]=k.split("-").map(Number);
@@ -451,23 +455,30 @@
 
     function render(){
       frame++;
+
       drawGradientBackground();
       drawPulsingField();
 
       const active = buildActiveEdges();
       updateEdgeMemory(active);
 
-      const lockedCount = applyPhiConvergenceAndLock(active);
+      // Archive is the long-lived layer: draw first so new lines sit above it
+      stepArchive();
+      drawArchive();
 
+      const lockedNow = applyPhiConvergenceAndLock(active);
+
+      // Draw current dynamics on top
       drawLinks(active);
       stepEvents();
       drawEvents();
-      relinkEdgeRefs();
+      relinkAndPruneEdges();
 
       hud.innerHTML =
         `events: ${events.length}<br>` +
         `links: ${active.length}<br>` +
-        `phiLocked: ${lockedCount}`;
+        `phiLockedNow: ${lockedNow}<br>` +
+        `archive: ${archive.length}`;
 
       t += 0.01;
       requestAnimationFrame(render);
