@@ -18,6 +18,10 @@
       --accent:#d8c28a;
       --ok:#8fd6a3;
       --warn:#f0a36a;
+      --safe-top: max(14px, env(safe-area-inset-top));
+      --safe-right: max(14px, env(safe-area-inset-right));
+      --safe-bottom: max(14px, env(safe-area-inset-bottom));
+      --safe-left: max(14px, env(safe-area-inset-left));
     }
 
     *{box-sizing:border-box}
@@ -30,6 +34,7 @@
       background:var(--bg);
       color:var(--text);
       font-family:Arial,Helvetica,sans-serif;
+      touch-action:none;
     }
 
     body{
@@ -56,14 +61,37 @@
     #archiveCanvas{opacity:.42}
     #mainCanvas{opacity:1}
 
+    .hud-toggle{
+      position:absolute;
+      top:var(--safe-top);
+      right:var(--safe-right);
+      z-index:30;
+      appearance:none;
+      border:1px solid var(--line);
+      background:rgba(16,20,26,.92);
+      color:var(--text);
+      min-width:48px;
+      height:48px;
+      padding:0 14px;
+      border-radius:14px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:800;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      backdrop-filter:blur(10px);
+      box-shadow:0 12px 28px rgba(0,0,0,.28);
+    }
+
     .hud{
       position:absolute;
-      top:14px;
-      left:14px;
-      z-index:10;
-      width:min(430px,calc(100vw - 28px));
+      top:var(--safe-top);
+      left:var(--safe-left);
+      z-index:20;
+      width:min(430px,calc(100vw - var(--safe-left) - var(--safe-right) - 64px));
       display:grid;
       gap:10px;
+      transition:transform .22s ease, opacity .22s ease;
     }
 
     .panel{
@@ -141,10 +169,11 @@
 
     .legend{
       position:absolute;
-      right:14px;
-      bottom:14px;
+      right:var(--safe-right);
+      bottom:var(--safe-bottom);
       z-index:10;
-      width:min(260px,calc(100vw - 28px));
+      width:min(260px,calc(100vw - var(--safe-left) - var(--safe-right)));
+      transition:opacity .22s ease, transform .22s ease;
     }
 
     .legend .row{
@@ -167,18 +196,97 @@
     .ok{background:var(--ok)}
     .warn{background:var(--warn)}
 
-    @media (max-width:720px){
-      .metrics{grid-template-columns:1fr 1fr}
-      .legend{width:min(320px,calc(100vw - 28px))}
+    .mobile-collapsed .hud{
+      transform:translateY(-12px);
+      opacity:0;
+      pointer-events:none;
+    }
+
+    .mobile-collapsed .legend{
+      opacity:0;
+      transform:translateY(10px);
+      pointer-events:none;
+    }
+
+    @media (min-width: 901px){
+      .hud-toggle{
+        display:none;
+      }
+    }
+
+    @media (max-width: 900px){
+      .hud{
+        width:min(360px,calc(100vw - var(--safe-left) - var(--safe-right) - 18px));
+      }
+    }
+
+    @media (max-width: 680px){
+      .hud{
+        width:calc(100vw - var(--safe-left) - var(--safe-right));
+      }
+
+      .panel{
+        border-radius:14px;
+        padding:12px;
+      }
+
+      .title{
+        font-size:13px;
+        margin-bottom:6px;
+      }
+
+      .subtitle{
+        font-size:11px;
+        line-height:1.4;
+      }
+
+      .metrics{
+        grid-template-columns:1fr 1fr;
+        gap:6px;
+      }
+
+      .metric{
+        padding:8px;
+        border-radius:10px;
+      }
+
+      .metric .k{
+        font-size:9px;
+        margin-bottom:3px;
+      }
+
+      .metric .v{
+        font-size:13px;
+      }
+
+      .controls{
+        gap:6px;
+      }
+
+      .controls button{
+        flex:1 1 calc(50% - 6px);
+        min-height:42px;
+        padding:9px 10px;
+        font-size:11px;
+      }
+
+      .legend{
+        width:calc(100vw - var(--safe-left) - var(--safe-right));
+        max-width:none;
+      }
     }
   </style>
 </head>
 <body>
-  <div id="app" aria-label="Design as Event relational field">
+  <div id="app" class="mobile-collapsed" aria-label="Design as Event relational field">
     <canvas id="archiveCanvas"></canvas>
     <canvas id="mainCanvas"></canvas>
 
-    <div class="hud">
+    <button id="hudToggle" class="hud-toggle" type="button" aria-expanded="false" aria-controls="hudPanel">
+      HUD
+    </button>
+
+    <div id="hudPanel" class="hud">
       <div class="panel">
         <div class="title">DW Field</div>
         <div class="subtitle">
@@ -194,7 +302,7 @@
           <div class="metric"><div class="k">φ-locks</div><div class="v" id="lockCount">0</div></div>
           <div class="metric"><div class="k">Frame ms</div><div class="v" id="frameMs">0.0</div></div>
           <div class="metric"><div class="k">Mode</div><div class="v" id="modeLabel">nominal</div></div>
-          <div class="metric"><div class="k">Build</div><div class="v" id="buildId">DW-2026-03-06-R5</div></div>
+          <div class="metric"><div class="k">Build</div><div class="v" id="buildId">DW-2026-03-06-R6</div></div>
         </div>
       </div>
 
@@ -205,7 +313,7 @@
           <button id="pulseBtn" type="button">Pulse Center</button>
         </div>
         <div class="subtitle" style="margin-top:8px;">
-          Pointer drag = perturbation field • Click = local injection • Keyboard: R reset / S seed / P pulse
+          Drag = perturbation field • Tap = local injection • Keyboard: R reset / S seed / P pulse
         </div>
       </div>
     </div>
@@ -222,7 +330,7 @@
     (() => {
       "use strict";
 
-      const BUILD_ID = "DW-2026-03-06-R5";
+      const BUILD_ID = "DW-2026-03-06-R6";
       const PHI = (1 + Math.sqrt(5)) / 2;
 
       const CFG = {
@@ -237,7 +345,6 @@
         RADIUS_MAX: 7.5,
         PHI_EPS: 0.075,
         LOCK_STABLE_FRAMES: 10,
-        CLUSTER_STABLE_FRAMES: 16,
         FRAME_BUDGET_MS: 14,
         ARCHIVE_FADE_ALPHA: 0.03,
         FRICTION: 0.985,
@@ -250,8 +357,11 @@
         WATCHDOG_EMPTY_LIMIT: 2
       };
 
+      const app = document.getElementById("app");
       const mainCanvas = document.getElementById("mainCanvas");
       const archiveCanvas = document.getElementById("archiveCanvas");
+      const hudToggle = document.getElementById("hudToggle");
+
       const ctx = mainCanvas.getContext("2d", { alpha: true });
       const actx = archiveCanvas.getContext("2d", { alpha: true });
 
@@ -288,6 +398,32 @@
         y: 0
       };
 
+      function isMobileLayout() {
+        return window.innerWidth <= 680;
+      }
+
+      function setHudCollapsed(collapsed) {
+        if (collapsed) {
+          app.classList.add("mobile-collapsed");
+          hudToggle.setAttribute("aria-expanded", "false");
+          hudToggle.textContent = "HUD";
+        } else {
+          app.classList.remove("mobile-collapsed");
+          hudToggle.setAttribute("aria-expanded", "true");
+          hudToggle.textContent = "Close";
+        }
+      }
+
+      function applyResponsiveHudMode() {
+        if (isMobileLayout()) {
+          setHudCollapsed(true);
+        } else {
+          app.classList.remove("mobile-collapsed");
+          hudToggle.setAttribute("aria-expanded", "true");
+          hudToggle.textContent = "HUD";
+        }
+      }
+
       function clamp(v, min, max) {
         return Math.max(min, Math.min(max, v));
       }
@@ -313,6 +449,8 @@
 
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         actx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        applyResponsiveHudMode();
       }
 
       function metricDistance(a, b) {
@@ -343,9 +481,7 @@
       }
 
       function pushNode(x, y, strength = 1) {
-        if (nodes.length >= CFG.MAX_NODES) {
-          nodes.shift();
-        }
+        if (nodes.length >= CFG.MAX_NODES) nodes.shift();
         nodes.push(makeNode(x, y, strength));
       }
 
@@ -452,7 +588,6 @@
 
         upper.pop();
         lower.pop();
-
         const hull = lower.concat(upper);
         return hull.length >= 3 ? hull : null;
       }
@@ -517,11 +652,7 @@
             const r = interactionRadius(a, b);
 
             if (d < r) {
-              newEdges.push({
-                i,
-                j,
-                strength: 1 - (d / Math.max(r, 1))
-              });
+              newEdges.push({ i, j, strength: 1 - (d / Math.max(r, 1)) });
               if (newEdges.length >= CFG.MAX_EDGES_DRAW) break;
             }
           }
@@ -546,7 +677,6 @@
               const e1 = d1 < interactionRadius(a, b);
               const e2 = d2 < interactionRadius(a, c);
               const e3 = d3 < interactionRadius(b, c);
-
               if (!(e1 && e2 && e3)) continue;
 
               const sorted = [d1, d2, d3].sort((m, n) => m - n);
@@ -679,11 +809,8 @@
       }
 
       function watchdog() {
-        if (nodes.length === 0) {
-          emptyFrames += 1;
-        } else {
-          emptyFrames = 0;
-        }
+        if (nodes.length === 0) emptyFrames += 1;
+        else emptyFrames = 0;
 
         if (emptyFrames >= CFG.WATCHDOG_EMPTY_LIMIT) {
           seedField(CFG.INITIAL_NODES);
@@ -707,13 +834,9 @@
 
         const frameMs = performance.now() - t0;
 
-        if (frameMs > CFG.FRAME_BUDGET_MS) {
-          frameMode = "guarded";
-        } else if (frameMs > CFG.FRAME_BUDGET_MS * 0.75) {
-          frameMode = "adaptive";
-        } else {
-          frameMode = "nominal";
-        }
+        if (frameMs > CFG.FRAME_BUDGET_MS) frameMode = "guarded";
+        else if (frameMs > CFG.FRAME_BUDGET_MS * 0.75) frameMode = "adaptive";
+        else frameMode = "nominal";
 
         syncUI(frameMs);
         rafId = requestAnimationFrame(step);
@@ -736,6 +859,10 @@
         for (let i = 0; i < CFG.INJECT_BATCH; i++) {
           pushNode(p.x + rand(-14, 14), p.y + rand(-14, 14), 1.05);
         }
+
+        if (isMobileLayout() && !app.classList.contains("mobile-collapsed")) {
+          setHudCollapsed(true);
+        }
       }
 
       function onPointerMove(ev) {
@@ -749,9 +876,7 @@
       }
 
       function bind() {
-        window.addEventListener("resize", () => {
-          resize();
-        }, { passive: true });
+        window.addEventListener("resize", resize, { passive: true });
 
         mainCanvas.addEventListener("pointerdown", onPointerDown);
         window.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -761,6 +886,12 @@
         ui.resetBtn.addEventListener("click", resetField);
         ui.seedBtn.addEventListener("click", () => seedField(12));
         ui.pulseBtn.addEventListener("click", pulseCenter);
+
+        hudToggle.addEventListener("click", () => {
+          if (!isMobileLayout()) return;
+          const collapsed = app.classList.contains("mobile-collapsed");
+          setHudCollapsed(!collapsed);
+        });
 
         window.addEventListener("keydown", (ev) => {
           const k = ev.key.toLowerCase();
