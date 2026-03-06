@@ -1,230 +1,876 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DW Morphogenetic Field</title>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"
+  />
+  <title>DW Field — Design as Event</title>
+  <meta
+    name="description"
+    content="Design as Event — relational field runtime. No authored polygons. Form appears only as metastable topology."
+  />
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: rgba(18, 22, 28, 0.88);
+      --line: rgba(255, 255, 255, 0.10);
+      --text: #f3f5f7;
+      --muted: rgba(243, 245, 247, 0.72);
+      --accent: #d8c28a;
+      --danger: #f07a7a;
+      --ok: #8fd6a3;
+    }
 
-<style>
-html,body{margin:0;height:100%;background:#05060b;overflow:hidden;font-family:system-ui}
-canvas{display:block;width:100vw;height:100vh}
+    * { box-sizing: border-box; }
 
-#hud{
-position:fixed;left:12px;top:12px;
-padding:10px;border-radius:10px;
-background:rgba(0,0,0,.5);
-color:white;font-size:13px
-}
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
 
-#reset{
-position:fixed;
-right:12px;
-top:12px;
-padding:10px 16px;
-background:#ffd36e;
-border:none;
-border-radius:10px;
-font-weight:bold;
-cursor:pointer
-}
-</style>
+    #app {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(216,194,138,0.08), transparent 28%),
+        radial-gradient(circle at 80% 30%, rgba(143,214,163,0.06), transparent 24%),
+        linear-gradient(180deg, #0c0f13 0%, #090b0e 100%);
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #archiveCanvas { opacity: 0.44; pointer-events: none; }
+    #mainCanvas { opacity: 1; pointer-events: none; }
+
+    .hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      display: grid;
+      gap: 10px;
+      z-index: 10;
+      max-width: min(420px, calc(100vw - 28px));
+    }
+
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(120px, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+    }
+
+    .metric .k {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .metric .v {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    button:hover { background: rgba(255,255,255,0.08); }
+
+    .legend {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      z-index: 10;
+      max-width: min(360px, calc(100vw - 28px));
+    }
+
+    .legend .row {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      min-width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .accent { background: var(--accent); }
+    .ok { background: var(--ok); }
+    .danger { background: var(--danger); }
+
+    a.inline {
+      color: var(--text);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+    }
+
+    @media (max-width: 720px) {
+      .hud, .legend {
+        max-width: calc(100vw - 20px);
+      }
+      .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
 </head>
-
 <body>
-
-<canvas id="c"></canvas>
-
-<div id="hud">
-DW Field<br>
-Nodes: <span id="nodes">0</span>
-</div>
-
-<button id="reset">RESET</button>
-
-<script>
-
-const canvas=document.getElementById("c")
-const ctx=canvas.getContext("2d")
-
-function resize(){
-canvas.width=window.innerWidth
-canvas.height=window.innerHeight
-}
-
-resize()
-window.addEventListener("resize",resize)
-
-let nodes=[]
-let edges=[]
-let locks=[]
-
-function resetEngine(){
-
-nodes.length=0
-edges.length=0
-locks.length=0
-
-ctx.fillStyle="#05060b"
-ctx.fillRect(0,0,canvas.width,canvas.height)
-
-seed()
-
-}
-
-document.getElementById("reset").onclick=resetEngine
-
-window.addEventListener("keydown",e=>{
-if(e.key==="r") resetEngine()
-})
-
-function seed(){
-
-for(let i=0;i<20;i++){
-
-nodes.push({
-
-x:(Math.random()-0.5)*300,
-y:(Math.random()-0.5)*200,
-vx:(Math.random()-0.5)*20,
-vy:(Math.random()-0.5)*20,
-life:10+Math.random()*10
-
-})
-
-}
-
-}
-
-canvas.addEventListener("click",e=>{
-
-const rect=canvas.getBoundingClientRect()
-
-nodes.push({
-
-x:e.clientX-rect.left-canvas.width/2,
-y:e.clientY-rect.top-canvas.height/2,
-vx:(Math.random()-0.5)*20,
-vy:(Math.random()-0.5)*20,
-life:10+Math.random()*10
-
-})
-
-if(nodes.length>80) nodes.shift()
-
-})
-
-function dist(a,b){
-
-const dx=a.x-b.x
-const dy=a.y-b.y
-
-return Math.sqrt(dx*dx+dy*dy)
-
-}
-
-function buildEdges(){
-
-edges.length=0
-
-for(let i=0;i<nodes.length;i++){
-
-for(let j=i+1;j<nodes.length;j++){
-
-if(dist(nodes[i],nodes[j])<140){
-
-edges.push([i,j])
-
-}
-
-}
-
-}
-
-}
-
-function step(dt){
-
-for(const n of nodes){
-
-n.x+=n.vx*dt
-n.y+=n.vy*dt
-
-n.vx*=0.985
-n.vy*=0.985
-
-n.life-=dt
-
-}
-
-for(let i=nodes.length-1;i>=0;i--){
-
-if(nodes[i].life<=0 && nodes.length>20)
-nodes.splice(i,1)
-
-}
-
-}
-
-function draw(){
-
-ctx.fillStyle="rgba(5,6,11,0.1)"
-ctx.fillRect(0,0,canvas.width,canvas.height)
-
-ctx.strokeStyle="rgba(120,210,255,0.3)"
-
-for(const e of edges){
-
-const A=nodes[e[0]]
-const B=nodes[e[1]]
-
-ctx.beginPath()
-ctx.moveTo(canvas.width/2+A.x,canvas.height/2+A.y)
-ctx.lineTo(canvas.width/2+B.x,canvas.height/2+B.y)
-ctx.stroke()
-
-}
-
-for(const n of nodes){
-
-ctx.beginPath()
-ctx.arc(canvas.width/2+n.x,canvas.height/2+n.y,3,0,Math.PI*2)
-ctx.fillStyle="white"
-ctx.fill()
-
-}
-
-document.getElementById("nodes").textContent=nodes.length
-
-}
-
-seed()
-
-let last=performance.now()
-
-function frame(now){
-
-let dt=(now-last)/1000
-last=now
-
-if(dt>0.12){
-
-console.warn("watchdog reset")
-resetEngine()
-return
-
-}
-
-buildEdges()
-step(dt)
-draw()
-
-requestAnimationFrame(frame)
-
-}
-
-requestAnimationFrame(frame)
-
-</script>
-
+  <div id="app" aria-label="Design as Event relational field runtime">
+    <canvas id="archiveCanvas"></canvas>
+    <canvas id="mainCanvas"></canvas>
+
+    <div class="hud">
+      <div class="panel">
+        <div class="title">DW Field</div>
+        <div class="subtitle">
+          Design as Event — no authored polygons. Only dynamic relational graphs.
+          Contour appears solely as metastable hull when cluster size ≥ 3 and stability ≥ threshold.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="metrics">
+          <div class="metric">
+            <div class="k">Nodes</div>
+            <div class="v" id="nodeCount">0</div>
+          </div>
+          <div class="metric">
+            <div class="k">Edges</div>
+            <div class="v" id="edgeCount">0</div>
+          </div>
+          <div class="metric">
+            <div class="k">φ-locks</div>
+            <div class="v" id="lockCount">0</div>
+          </div>
+          <div class="metric">
+            <div class="k">Frame ms</div>
+            <div class="v" id="frameMs">0.0</div>
+          </div>
+          <div class="metric">
+            <div class="k">Mode</div>
+            <div class="v" id="budgetMode">nominal</div>
+          </div>
+          <div class="metric">
+            <div class="k">Build</div>
+            <div class="v" id="buildId">DW-2026-03-06-R4</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="controls">
+          <button id="resetBtn" type="button">Reset</button>
+          <button id="seedBtn" type="button">Seed Field</button>
+          <button id="pulseBtn" type="button">Pulse Center</button>
+        </div>
+        <div class="subtitle" style="margin-top:8px;">
+          Pointer drag = perturbation field • Click = local injection • Keyboard: R reset / S seed / P pulse
+        </div>
+      </div>
+    </div>
+
+    <div class="legend panel">
+      <div class="title">Runtime Guarantees</div>
+      <div class="row"><span class="badge accent"></span>Fixed node cap</div>
+      <div class="row"><span class="badge ok"></span>Spatial hashing + bounded neighbors</div>
+      <div class="row"><span class="badge danger"></span>Triplet sampling + frame budget fallback</div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const BUILD_ID = "DW-2026-03-06-R4";
+      const PHI = (1 + Math.sqrt(5)) / 2;
+
+      const CONFIG = {
+        MAX_NODES: 180,
+        MAX_EDGES_DRAW: 900,
+        MAX_NEIGHBORS_PER_NODE: 14,
+        MAX_TRIPLETS_PER_FRAME: 320,
+        GRID_SIZE: 86,
+        BASE_RADIUS: 52,
+        EDGE_RADIUS_GAIN: 0.32,
+        LAMBDA_Z: 0.42,
+        PHI_EPSILON: 0.08,
+        LOCK_STABLE_FRAMES: 12,
+        CLUSTER_STABLE_FRAMES: 18,
+        EDGE_MEMORY_FRAMES: 8,
+        INJECT_COOLDOWN_MS: 22,
+        ARCHIVE_FADE_ALPHA: 0.028,
+        NODE_FRICTION: 0.986,
+        VELOCITY_LIMIT: 1.65,
+        ENERGY_DECAY: 0.992,
+        LIFE_DECAY: 0.22,
+        BACKGROUND_DRIFT: 0.0018,
+        FRAME_BUDGET_MS: 14.0
+      };
+
+      const app = document.getElementById("app");
+      const mainCanvas = document.getElementById("mainCanvas");
+      const archiveCanvas = document.getElementById("archiveCanvas");
+      const ctx = mainCanvas.getContext("2d", { alpha: true });
+      const actx = archiveCanvas.getContext("2d", { alpha: true });
+
+      const ui = {
+        nodeCount: document.getElementById("nodeCount"),
+        edgeCount: document.getElementById("edgeCount"),
+        lockCount: document.getElementById("lockCount"),
+        frameMs: document.getElementById("frameMs"),
+        budgetMode: document.getElementById("budgetMode"),
+        buildId: document.getElementById("buildId"),
+        resetBtn: document.getElementById("resetBtn"),
+        seedBtn: document.getElementById("seedBtn"),
+        pulseBtn: document.getElementById("pulseBtn")
+      };
+
+      ui.buildId.textContent = BUILD_ID;
+
+      let width = 0;
+      let height = 0;
+      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      let nodes = [];
+      let edges = [];
+      let lockMap = new Map();
+      let clusterMap = new Map();
+      let activePointer = { down: false, x: 0, y: 0, lastInject: 0 };
+      let rafId = 0;
+      let lastTime = 0;
+      let budgetMode = "nominal";
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        mainCanvas.width = Math.floor(width * dpr);
+        mainCanvas.height = Math.floor(height * dpr);
+        archiveCanvas.width = Math.floor(width * dpr);
+        archiveCanvas.height = Math.floor(height * dpr);
+
+        mainCanvas.style.width = width + "px";
+        mainCanvas.style.height = height + "px";
+        archiveCanvas.style.width = width + "px";
+        archiveCanvas.style.height = height + "px";
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        actx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        drawArchiveFade(true);
+      }
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      function nodeRadius(n) {
+        return n.radius + n.energy * 6;
+      }
+
+      function interactionRadius(a, b) {
+        return CONFIG.BASE_RADIUS
+          + (a.radius + b.radius) * 0.65
+          + (a.energy + b.energy) * CONFIG.EDGE_RADIUS_GAIN * 24;
+      }
+
+      function metricDistance(a, b) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dz = (a.z - b.z) * CONFIG.LAMBDA_Z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+      }
+
+      function createNode(x, y, strength = 1) {
+        if (nodes.length >= CONFIG.MAX_NODES) return;
+
+        const angle = rand(0, Math.PI * 2);
+        const speed = rand(0.18, 0.95) * strength;
+
+        nodes.push({
+          id: crypto.randomUUID ? crypto.randomUUID() : ("n_" + Math.random().toString(36).slice(2)),
+          x: clamp(x + rand(-10, 10), 12, width - 12),
+          y: clamp(y + rand(-10, 10), 12, height - 12),
+          z: rand(-1, 1),
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          vz: rand(-0.02, 0.02),
+          energy: clamp(rand(0.45, 1.0) * strength, 0.2, 1.35),
+          radius: rand(3.2, 7.8),
+          lifetime: rand(520, 900),
+          phase: rand(0, Math.PI * 2),
+          age: 0
+        });
+      }
+
+      function seedField(count = 36) {
+        const cx = width * 0.5;
+        const cy = height * 0.5;
+        const ring = Math.min(width, height) * 0.22;
+
+        for (let i = 0; i < count; i++) {
+          const a = (i / count) * Math.PI * 2 + rand(-0.12, 0.12);
+          const r = ring * rand(0.42, 1.0);
+          createNode(cx + Math.cos(a) * r, cy + Math.sin(a) * r, rand(0.75, 1.15));
+        }
+      }
+
+      function pulseCenter() {
+        const cx = width * 0.5;
+        const cy = height * 0.5;
+        for (let i = 0; i < 16; i++) {
+          createNode(cx + rand(-26, 26), cy + rand(-26, 26), 1.18);
+        }
+      }
+
+      function resetField() {
+        nodes = [];
+        edges = [];
+        lockMap.clear();
+        clusterMap.clear();
+        ctx.clearRect(0, 0, width, height);
+        actx.clearRect(0, 0, width, height);
+        drawArchiveFade(true);
+        seedField(30);
+        syncUI(0);
+      }
+
+      function syncUI(frameMs) {
+        ui.nodeCount.textContent = String(nodes.length);
+        ui.edgeCount.textContent = String(edges.length);
+        ui.lockCount.textContent = String([...lockMap.values()].filter(v => v.stable).length);
+        ui.frameMs.textContent = frameMs.toFixed(1);
+        ui.budgetMode.textContent = budgetMode;
+      }
+
+      function cellKey(cx, cy) {
+        return cx + "|" + cy;
+      }
+
+      function buildSpatialHash() {
+        const grid = new Map();
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          const gx = Math.floor(n.x / CONFIG.GRID_SIZE);
+          const gy = Math.floor(n.y / CONFIG.GRID_SIZE);
+          const key = cellKey(gx, gy);
+          if (!grid.has(key)) grid.set(key, []);
+          grid.get(key).push(i);
+        }
+        return grid;
+      }
+
+      function getCandidateNeighbors(index, grid) {
+        const n = nodes[index];
+        const gx = Math.floor(n.x / CONFIG.GRID_SIZE);
+        const gy = Math.floor(n.y / CONFIG.GRID_SIZE);
+        const out = [];
+
+        for (let oy = -1; oy <= 1; oy++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            const key = cellKey(gx + ox, gy + oy);
+            const bucket = grid.get(key);
+            if (!bucket) continue;
+            for (let k = 0; k < bucket.length; k++) {
+              const j = bucket[k];
+              if (j === index) continue;
+              out.push(j);
+            }
+          }
+        }
+
+        out.sort((a, b) => metricDistance(n, nodes[a]) - metricDistance(n, nodes[b]));
+        if (out.length > CONFIG.MAX_NEIGHBORS_PER_NODE) {
+          out.length = CONFIG.MAX_NEIGHBORS_PER_NODE;
+        }
+        return out;
+      }
+
+      function updateNodes(dt) {
+        for (let i = nodes.length - 1; i >= 0; i--) {
+          const n = nodes[i];
+          n.age += dt;
+          n.lifetime -= CONFIG.LIFE_DECAY * dt * 0.06;
+          n.energy *= Math.pow(CONFIG.ENERGY_DECAY, dt);
+          n.phase += 0.02 + n.energy * 0.012;
+          n.vx += Math.cos(n.phase + n.z * 2.4) * CONFIG.BACKGROUND_DRIFT;
+          n.vy += Math.sin(n.phase - n.z * 1.7) * CONFIG.BACKGROUND_DRIFT;
+          n.vz += Math.sin(n.phase * 0.3) * 0.0004;
+
+          n.vx *= Math.pow(CONFIG.NODE_FRICTION, dt);
+          n.vy *= Math.pow(CONFIG.NODE_FRICTION, dt);
+          n.vz *= Math.pow(CONFIG.NODE_FRICTION, dt);
+
+          n.vx = clamp(n.vx, -CONFIG.VELOCITY_LIMIT, CONFIG.VELOCITY_LIMIT);
+          n.vy = clamp(n.vy, -CONFIG.VELOCITY_LIMIT, CONFIG.VELOCITY_LIMIT);
+          n.vz = clamp(n.vz, -0.05, 0.05);
+
+          n.x += n.vx * dt;
+          n.y += n.vy * dt;
+          n.z += n.vz * dt;
+
+          if (n.x < 8 || n.x > width - 8) n.vx *= -0.92;
+          if (n.y < 8 || n.y > height - 8) n.vy *= -0.92;
+
+          n.x = clamp(n.x, 8, width - 8);
+          n.y = clamp(n.y, 8, height - 8);
+          n.z = clamp(n.z, -1.4, 1.4);
+
+          if (n.lifetime <= 0.1 || n.energy < 0.03) {
+            nodes.splice(i, 1);
+          }
+        }
+      }
+
+      function applyPointerField() {
+        if (!activePointer.down) return;
+
+        const now = performance.now();
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          const dx = activePointer.x - n.x;
+          const dy = activePointer.y - n.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > 160 * 160) continue;
+          const force = 1 / Math.max(24, Math.sqrt(d2));
+          n.vx += dx * force * 0.006;
+          n.vy += dy * force * 0.006;
+          n.energy = clamp(n.energy + 0.0045, 0, 1.4);
+        }
+
+        if (now - activePointer.lastInject >= CONFIG.INJECT_COOLDOWN_MS && nodes.length < CONFIG.MAX_NODES) {
+          activePointer.lastInject = now;
+          createNode(activePointer.x, activePointer.y, 0.92);
+        }
+      }
+
+      function buildEdgesAndLocks() {
+        edges = [];
+        const grid = buildSpatialHash();
+        const seenEdge = new Set();
+        const nextLockMap = new Map();
+        let tripletsProcessed = 0;
+
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          const neighbors = getCandidateNeighbors(i, grid);
+
+          for (let ni = 0; ni < neighbors.length; ni++) {
+            const j = neighbors[ni];
+            if (j <= i) continue;
+            const b = nodes[j];
+            const d = metricDistance(a, b);
+            const R = interactionRadius(a, b);
+
+            if (d < R) {
+              const key = i + "|" + j;
+              if (!seenEdge.has(key)) {
+                seenEdge.add(key);
+                edges.push({ i, j, d, strength: 1 - d / Math.max(R, 1) });
+                if (edges.length >= CONFIG.MAX_EDGES_DRAW) break;
+              }
+            }
+          }
+
+          if (edges.length >= CONFIG.MAX_EDGES_DRAW) break;
+
+          for (let n1 = 0; n1 < neighbors.length; n1++) {
+            for (let n2 = n1 + 1; n2 < neighbors.length; n2++) {
+              if (tripletsProcessed >= CONFIG.MAX_TRIPLETS_PER_FRAME) break;
+
+              const j = neighbors[n1];
+              const k = neighbors[n2];
+              if (j === k || j <= i || k <= i) continue;
+
+              const b = nodes[j];
+              const c = nodes[k];
+
+              const dab = metricDistance(a, b);
+              const dac = metricDistance(a, c);
+              const dbc = metricDistance(b, c);
+
+              const eab = dab < interactionRadius(a, b);
+              const eac = dac < interactionRadius(a, c);
+              const ebc = dbc < interactionRadius(b, c);
+
+              if (!(eab && eac && ebc)) continue;
+
+              const arr = [dab, dac, dbc].sort((m, n) => m - n);
+              const d1 = arr[0], d2 = arr[1], d3 = arr[2];
+
+              const phiHit =
+                Math.abs((d3 / Math.max(d2, 0.0001)) - PHI) < CONFIG.PHI_EPSILON ||
+                Math.abs((d2 / Math.max(d1, 0.0001)) - PHI) < CONFIG.PHI_EPSILON;
+
+              tripletsProcessed++;
+
+              if (!phiHit) continue;
+
+              const ids = [i, j, k].sort((m, n) => m - n);
+              const key = ids.join("|");
+              const prev = lockMap.get(key);
+
+              const state = {
+                ids,
+                hold: prev ? prev.hold + 1 : 1,
+                stable: false,
+                centroid: {
+                  x: (a.x + b.x + c.x) / 3,
+                  y: (a.y + b.y + c.y) / 3
+                },
+                points: [
+                  { x: a.x, y: a.y },
+                  { x: b.x, y: b.y },
+                  { x: c.x, y: c.y }
+                ]
+              };
+
+              if (state.hold >= CONFIG.LOCK_STABLE_FRAMES) {
+                state.stable = true;
+              }
+
+              nextLockMap.set(key, state);
+            }
+            if (tripletsProcessed >= CONFIG.MAX_TRIPLETS_PER_FRAME) break;
+          }
+        }
+
+        lockMap = nextLockMap;
+        buildClustersFromStableLocks();
+      }
+
+      function buildClustersFromStableLocks() {
+        clusterMap.clear();
+        const membership = new Map();
+
+        for (const [key, lock] of lockMap.entries()) {
+          if (!lock.stable) continue;
+          const ids = lock.ids;
+          const clusterKey = ids.join("|");
+
+          if (!clusterMap.has(clusterKey)) {
+            clusterMap.set(clusterKey, {
+              ids: [...ids],
+              hold: 1,
+              stable: false
+            });
+          }
+
+          const prev = clusterMap.get(clusterKey);
+          prev.hold += 1;
+          prev.stable = prev.hold >= CONFIG.CLUSTER_STABLE_FRAMES;
+
+          for (let i = 0; i < ids.length; i++) {
+            membership.set(ids[i], true);
+          }
+        }
+      }
+
+      function convexHull(points) {
+        if (points.length < 3) return null;
+
+        const pts = points
+          .map(p => ({ x: p.x, y: p.y }))
+          .sort((a, b) => a.x === b.x ? a.y - b.y : a.x - b.x);
+
+        const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+        const lower = [];
+        for (const p of pts) {
+          while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+            lower.pop();
+          }
+          lower.push(p);
+        }
+
+        const upper = [];
+        for (let i = pts.length - 1; i >= 0; i--) {
+          const p = pts[i];
+          while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+            upper.pop();
+          }
+          upper.push(p);
+        }
+
+        upper.pop();
+        lower.pop();
+        const hull = lower.concat(upper);
+        return hull.length >= 3 ? hull : null;
+      }
+
+      function drawArchiveFade(forceSolid = false) {
+        if (forceSolid) {
+          actx.clearRect(0, 0, width, height);
+          return;
+        }
+        actx.save();
+        actx.globalCompositeOperation = "source-over";
+        actx.fillStyle = `rgba(11, 13, 16, ${CONFIG.ARCHIVE_FADE_ALPHA})`;
+        actx.fillRect(0, 0, width, height);
+        actx.restore();
+      }
+
+      function drawStableHullsToArchive() {
+        for (const lock of lockMap.values()) {
+          if (!lock.stable) continue;
+          const hull = convexHull(lock.points);
+          if (!hull) continue;
+
+          actx.save();
+          actx.beginPath();
+          actx.moveTo(hull[0].x, hull[0].y);
+          for (let i = 1; i < hull.length; i++) {
+            actx.lineTo(hull[i].x, hull[i].y);
+          }
+          actx.closePath();
+          actx.fillStyle = "rgba(216, 194, 138, 0.05)";
+          actx.strokeStyle = "rgba(216, 194, 138, 0.22)";
+          actx.lineWidth = 1;
+          actx.fill();
+          actx.stroke();
+          actx.restore();
+        }
+      }
+
+      function render() {
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+        ctx.lineWidth = 1;
+
+        for (let i = 0; i < edges.length; i++) {
+          const e = edges[i];
+          const a = nodes[e.i];
+          const b = nodes[e.j];
+          if (!a || !b) continue;
+
+          const alpha = clamp(0.06 + e.strength * 0.24, 0.05, 0.26);
+          ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        for (const lock of lockMap.values()) {
+          if (!lock.stable) continue;
+
+          const hull = convexHull(lock.points);
+          if (!hull) continue;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(hull[0].x, hull[0].y);
+          for (let i = 1; i < hull.length; i++) {
+            ctx.lineTo(hull[i].x, hull[i].y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "rgba(216, 194, 138, 0.035)";
+          ctx.strokeStyle = "rgba(216, 194, 138, 0.36)";
+          ctx.lineWidth = 1.2;
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(lock.centroid.x, lock.centroid.y, 2.4, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(143, 214, 163, 0.85)";
+          ctx.fill();
+          ctx.restore();
+        }
+
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          const r = nodeRadius(n);
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(243,245,247,${clamp(0.18 + n.energy * 0.24, 0.18, 0.44)})`;
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, Math.max(1.25, r * 0.34), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(216,194,138,${clamp(0.32 + n.energy * 0.28, 0.32, 0.72)})`;
+          ctx.fill();
+          ctx.restore();
+        }
+
+        if (activePointer.down) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(activePointer.x, activePointer.y, 26, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(143,214,163,0.35)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      function step(now) {
+        if (!lastTime) lastTime = now;
+        const rawDt = (now - lastTime) / 16.6667;
+        lastTime = now;
+
+        const dt = clamp(rawDt, 0.7, 1.4);
+        const frameStart = performance.now();
+
+        applyPointerField();
+        updateNodes(dt);
+
+        const beforeBuild = performance.now();
+        buildEdgesAndLocks();
+        const buildMs = performance.now() - beforeBuild;
+
+        drawArchiveFade(false);
+        drawStableHullsToArchive();
+        render();
+
+        const frameMs = performance.now() - frameStart;
+
+        if (frameMs > CONFIG.FRAME_BUDGET_MS || buildMs > CONFIG.FRAME_BUDGET_MS * 0.62) {
+          budgetMode = "guarded";
+        } else if (frameMs > CONFIG.FRAME_BUDGET_MS * 0.82) {
+          budgetMode = "adaptive";
+        } else {
+          budgetMode = "nominal";
+        }
+
+        syncUI(frameMs);
+        rafId = requestAnimationFrame(step);
+      }
+
+      function pointerPosFromEvent(ev) {
+        const rect = mainCanvas.getBoundingClientRect();
+        return {
+          x: ev.clientX - rect.left,
+          y: ev.clientY - rect.top
+        };
+      }
+
+      function onPointerDown(ev) {
+        const p = pointerPosFromEvent(ev);
+        activePointer.down = true;
+        activePointer.x = p.x;
+        activePointer.y = p.y;
+        activePointer.lastInject = 0;
+        for (let i = 0; i < 6; i++) createNode(p.x, p.y, 1.04);
+      }
+
+      function onPointerMove(ev) {
+        const p = pointerPosFromEvent(ev);
+        activePointer.x = p.x;
+        activePointer.y = p.y;
+      }
+
+      function onPointerUp() {
+        activePointer.down = false;
+      }
+
+      function bindEvents() {
+        window.addEventListener("resize", resize, { passive: true });
+
+        mainCanvas.addEventListener("pointerdown", onPointerDown);
+        window.addEventListener("pointermove", onPointerMove, { passive: true });
+        window.addEventListener("pointerup", onPointerUp, { passive: true });
+        window.addEventListener("pointercancel", onPointerUp, { passive: true });
+
+        ui.resetBtn.addEventListener("click", resetField);
+        ui.seedBtn.addEventListener("click", () => seedField(18));
+        ui.pulseBtn.addEventListener("click", pulseCenter);
+
+        window.addEventListener("keydown", (ev) => {
+          const key = ev.key.toLowerCase();
+          if (key === "r") resetField();
+          if (key === "s") seedField(18);
+          if (key === "p") pulseCenter();
+        });
+      }
+
+      function start() {
+        resize();
+        bindEvents();
+        resetField();
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(step);
+      }
+
+      start();
+    })();
+  </script>
 </body>
 </html>
