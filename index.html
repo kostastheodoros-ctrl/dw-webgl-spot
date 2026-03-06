@@ -2,188 +2,179 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"
-  />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
   <title>DW Field — Design as Event</title>
   <meta
     name="description"
-    content="Design as Event — relational field runtime. No authored polygons. Form appears only as metastable topology."
+    content="Design as Event — relational runtime. No authored polygons. Form appears only as metastable topology from dynamic interactions."
   />
   <style>
-    :root {
-      --bg: #0b0d10;
-      --panel: rgba(18, 22, 28, 0.88);
-      --line: rgba(255, 255, 255, 0.10);
-      --text: #f3f5f7;
-      --muted: rgba(243, 245, 247, 0.72);
-      --accent: #d8c28a;
-      --danger: #f07a7a;
-      --ok: #8fd6a3;
+    :root{
+      --bg:#06080b;
+      --panel:rgba(16,20,26,.88);
+      --line:rgba(255,255,255,.10);
+      --text:#f2f5f7;
+      --muted:rgba(242,245,247,.72);
+      --accent:#d8c28a;
+      --ok:#8fd6a3;
+      --warn:#f0a36a;
     }
 
-    * { box-sizing: border-box; }
+    *{box-sizing:border-box}
 
-    html, body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Arial, Helvetica, sans-serif;
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Arial,Helvetica,sans-serif;
     }
 
-    #app {
-      position: fixed;
-      inset: 0;
-      overflow: hidden;
+    body{
       background:
-        radial-gradient(circle at 20% 20%, rgba(216,194,138,0.08), transparent 28%),
-        radial-gradient(circle at 80% 30%, rgba(143,214,163,0.06), transparent 24%),
-        linear-gradient(180deg, #0c0f13 0%, #090b0e 100%);
+        radial-gradient(circle at 18% 18%, rgba(216,194,138,.07), transparent 22%),
+        radial-gradient(circle at 82% 22%, rgba(143,214,163,.05), transparent 18%),
+        linear-gradient(180deg,#0a0d11 0%, #06080b 100%);
     }
 
-    canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
+    #app{
+      position:fixed;
+      inset:0;
+      overflow:hidden;
     }
 
-    #archiveCanvas { opacity: 0.44; pointer-events: none; }
-    #mainCanvas { opacity: 1; pointer-events: none; }
-
-    .hud {
-      position: absolute;
-      top: 14px;
-      left: 14px;
-      display: grid;
-      gap: 10px;
-      z-index: 10;
-      max-width: min(420px, calc(100vw - 28px));
+    canvas{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      display:block;
     }
 
-    .panel {
-      background: var(--panel);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px 14px;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    #archiveCanvas{opacity:.42}
+    #mainCanvas{opacity:1}
+
+    .hud{
+      position:absolute;
+      top:14px;
+      left:14px;
+      z-index:10;
+      width:min(430px,calc(100vw - 28px));
+      display:grid;
+      gap:10px;
     }
 
-    .title {
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-bottom: 6px;
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      backdrop-filter:blur(10px);
+      box-shadow:0 12px 28px rgba(0,0,0,.28);
     }
 
-    .subtitle {
-      font-size: 12px;
-      line-height: 1.45;
-      color: var(--muted);
+    .title{
+      font-size:14px;
+      font-weight:800;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      margin:0 0 8px 0;
     }
 
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(120px, 1fr));
-      gap: 8px;
+    .subtitle{
+      font-size:12px;
+      line-height:1.45;
+      color:var(--muted);
     }
 
-    .metric {
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: rgba(255,255,255,0.03);
+    .metrics{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(120px,1fr));
+      gap:8px;
     }
 
-    .metric .k {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-      margin-bottom: 4px;
+    .metric{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px;
+      background:rgba(255,255,255,.03);
     }
 
-    .metric .v {
-      font-size: 14px;
-      font-weight: 700;
+    .metric .k{
+      font-size:10px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--muted);
+      margin-bottom:4px;
     }
 
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
+    .metric .v{
+      font-size:14px;
+      font-weight:800;
     }
 
-    button {
-      appearance: none;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,0.04);
-      color: var(--text);
-      padding: 10px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
     }
 
-    button:hover { background: rgba(255,255,255,0.08); }
-
-    .legend {
-      position: absolute;
-      right: 14px;
-      bottom: 14px;
-      z-index: 10;
-      max-width: min(360px, calc(100vw - 28px));
+    button{
+      appearance:none;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:800;
+      letter-spacing:.08em;
+      text-transform:uppercase;
     }
 
-    .legend .row {
-      font-size: 12px;
-      line-height: 1.45;
-      color: var(--muted);
-      margin-top: 4px;
+    button:hover{
+      background:rgba(255,255,255,.08);
     }
 
-    .badge {
-      display: inline-block;
-      min-width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      margin-right: 8px;
-      vertical-align: middle;
+    .legend{
+      position:absolute;
+      right:14px;
+      bottom:14px;
+      z-index:10;
+      width:min(260px,calc(100vw - 28px));
     }
 
-    .accent { background: var(--accent); }
-    .ok { background: var(--ok); }
-    .danger { background: var(--danger); }
-
-    a.inline {
-      color: var(--text);
-      text-decoration: none;
-      border-bottom: 1px solid rgba(255,255,255,0.22);
+    .legend .row{
+      font-size:12px;
+      line-height:1.45;
+      color:var(--muted);
+      margin-top:4px;
     }
 
-    @media (max-width: 720px) {
-      .hud, .legend {
-        max-width: calc(100vw - 20px);
-      }
-      .metrics {
-        grid-template-columns: 1fr 1fr;
-      }
+    .dot{
+      display:inline-block;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      margin-right:8px;
+      vertical-align:middle;
+    }
+
+    .accent{background:var(--accent)}
+    .ok{background:var(--ok)}
+    .warn{background:var(--warn)}
+
+    @media (max-width:720px){
+      .metrics{grid-template-columns:1fr 1fr}
+      .legend{width:min(320px,calc(100vw - 28px))}
     }
   </style>
 </head>
 <body>
-  <div id="app" aria-label="Design as Event relational field runtime">
+  <div id="app" aria-label="Design as Event relational field">
     <canvas id="archiveCanvas"></canvas>
     <canvas id="mainCanvas"></canvas>
 
@@ -198,30 +189,12 @@
 
       <div class="panel">
         <div class="metrics">
-          <div class="metric">
-            <div class="k">Nodes</div>
-            <div class="v" id="nodeCount">0</div>
-          </div>
-          <div class="metric">
-            <div class="k">Edges</div>
-            <div class="v" id="edgeCount">0</div>
-          </div>
-          <div class="metric">
-            <div class="k">φ-locks</div>
-            <div class="v" id="lockCount">0</div>
-          </div>
-          <div class="metric">
-            <div class="k">Frame ms</div>
-            <div class="v" id="frameMs">0.0</div>
-          </div>
-          <div class="metric">
-            <div class="k">Mode</div>
-            <div class="v" id="budgetMode">nominal</div>
-          </div>
-          <div class="metric">
-            <div class="k">Build</div>
-            <div class="v" id="buildId">DW-2026-03-06-R4</div>
-          </div>
+          <div class="metric"><div class="k">Nodes</div><div class="v" id="nodeCount">0</div></div>
+          <div class="metric"><div class="k">Edges</div><div class="v" id="edgeCount">0</div></div>
+          <div class="metric"><div class="k">φ-locks</div><div class="v" id="lockCount">0</div></div>
+          <div class="metric"><div class="k">Frame ms</div><div class="v" id="frameMs">0.0</div></div>
+          <div class="metric"><div class="k">Mode</div><div class="v" id="modeLabel">nominal</div></div>
+          <div class="metric"><div class="k">Build</div><div class="v" id="buildId">DW-2026-03-06-R5</div></div>
         </div>
       </div>
 
@@ -239,9 +212,9 @@
 
     <div class="legend panel">
       <div class="title">Runtime Guarantees</div>
-      <div class="row"><span class="badge accent"></span>Fixed node cap</div>
-      <div class="row"><span class="badge ok"></span>Spatial hashing + bounded neighbors</div>
-      <div class="row"><span class="badge danger"></span>Triplet sampling + frame budget fallback</div>
+      <div class="row"><span class="dot accent"></span>Fixed node cap</div>
+      <div class="row"><span class="dot ok"></span>Spatial hashing + bounded neighbors</div>
+      <div class="row"><span class="dot warn"></span>Triplet sampling + watchdog reseed</div>
     </div>
   </div>
 
@@ -249,33 +222,34 @@
     (() => {
       "use strict";
 
-      const BUILD_ID = "DW-2026-03-06-R4";
+      const BUILD_ID = "DW-2026-03-06-R5";
       const PHI = (1 + Math.sqrt(5)) / 2;
 
-      const CONFIG = {
-        MAX_NODES: 180,
-        MAX_EDGES_DRAW: 900,
-        MAX_NEIGHBORS_PER_NODE: 14,
-        MAX_TRIPLETS_PER_FRAME: 320,
-        GRID_SIZE: 86,
-        BASE_RADIUS: 52,
-        EDGE_RADIUS_GAIN: 0.32,
-        LAMBDA_Z: 0.42,
-        PHI_EPSILON: 0.08,
-        LOCK_STABLE_FRAMES: 12,
-        CLUSTER_STABLE_FRAMES: 18,
-        EDGE_MEMORY_FRAMES: 8,
-        INJECT_COOLDOWN_MS: 22,
-        ARCHIVE_FADE_ALPHA: 0.028,
-        NODE_FRICTION: 0.986,
-        VELOCITY_LIMIT: 1.65,
-        ENERGY_DECAY: 0.992,
-        LIFE_DECAY: 0.22,
-        BACKGROUND_DRIFT: 0.0018,
-        FRAME_BUDGET_MS: 14.0
+      const CFG = {
+        MAX_NODES: 96,
+        INITIAL_NODES: 42,
+        MAX_EDGES_DRAW: 320,
+        MAX_NEIGHBORS: 8,
+        MAX_TRIPLETS_PER_FRAME: 120,
+        GRID: 96,
+        BASE_LINK_RADIUS: 108,
+        RADIUS_MIN: 3.5,
+        RADIUS_MAX: 7.5,
+        PHI_EPS: 0.075,
+        LOCK_STABLE_FRAMES: 10,
+        CLUSTER_STABLE_FRAMES: 16,
+        FRAME_BUDGET_MS: 14,
+        ARCHIVE_FADE_ALPHA: 0.03,
+        FRICTION: 0.985,
+        ENERGY_DECAY: 0.996,
+        LIFE_DECAY: 0.01,
+        POINTER_FORCE: 0.010,
+        BOUNCE: -0.92,
+        INJECT_BATCH: 4,
+        CENTER_PULSE: 10,
+        WATCHDOG_EMPTY_LIMIT: 2
       };
 
-      const app = document.getElementById("app");
       const mainCanvas = document.getElementById("mainCanvas");
       const archiveCanvas = document.getElementById("archiveCanvas");
       const ctx = mainCanvas.getContext("2d", { alpha: true });
@@ -286,7 +260,7 @@
         edgeCount: document.getElementById("edgeCount"),
         lockCount: document.getElementById("lockCount"),
         frameMs: document.getElementById("frameMs"),
-        budgetMode: document.getElementById("budgetMode"),
+        modeLabel: document.getElementById("modeLabel"),
         buildId: document.getElementById("buildId"),
         resetBtn: document.getElementById("resetBtn"),
         seedBtn: document.getElementById("seedBtn"),
@@ -297,20 +271,34 @@
 
       let width = 0;
       let height = 0;
-      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let dpr = 1;
 
+      let nextNodeId = 1;
       let nodes = [];
       let edges = [];
-      let lockMap = new Map();
-      let clusterMap = new Map();
-      let activePointer = { down: false, x: 0, y: 0, lastInject: 0 };
+      let locks = new Map();
+      let frameMode = "nominal";
       let rafId = 0;
-      let lastTime = 0;
-      let budgetMode = "nominal";
+      let lastTs = 0;
+      let emptyFrames = 0;
+
+      const pointer = {
+        down: false,
+        x: 0,
+        y: 0
+      };
+
+      function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
 
       function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
+        width = Math.max(window.innerWidth, 320);
+        height = Math.max(window.innerHeight, 320);
         dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         mainCanvas.width = Math.floor(width * dpr);
@@ -325,318 +313,115 @@
 
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         actx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        drawArchiveFade(true);
-      }
-
-      function rand(min, max) {
-        return min + Math.random() * (max - min);
-      }
-
-      function clamp(v, min, max) {
-        return Math.max(min, Math.min(max, v));
-      }
-
-      function nodeRadius(n) {
-        return n.radius + n.energy * 6;
-      }
-
-      function interactionRadius(a, b) {
-        return CONFIG.BASE_RADIUS
-          + (a.radius + b.radius) * 0.65
-          + (a.energy + b.energy) * CONFIG.EDGE_RADIUS_GAIN * 24;
       }
 
       function metricDistance(a, b) {
         const dx = a.x - b.x;
         const dy = a.y - b.y;
-        const dz = (a.z - b.z) * CONFIG.LAMBDA_Z;
+        const dz = (a.z - b.z) * 0.42;
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
       }
 
-      function createNode(x, y, strength = 1) {
-        if (nodes.length >= CONFIG.MAX_NODES) return;
-
-        const angle = rand(0, Math.PI * 2);
-        const speed = rand(0.18, 0.95) * strength;
-
-        nodes.push({
-          id: crypto.randomUUID ? crypto.randomUUID() : ("n_" + Math.random().toString(36).slice(2)),
-          x: clamp(x + rand(-10, 10), 12, width - 12),
-          y: clamp(y + rand(-10, 10), 12, height - 12),
-          z: rand(-1, 1),
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          vz: rand(-0.02, 0.02),
-          energy: clamp(rand(0.45, 1.0) * strength, 0.2, 1.35),
-          radius: rand(3.2, 7.8),
-          lifetime: rand(520, 900),
-          phase: rand(0, Math.PI * 2),
-          age: 0
-        });
+      function interactionRadius(a, b) {
+        return CFG.BASE_LINK_RADIUS + (a.radius + b.radius) * 1.5 + (a.energy + b.energy) * 16;
       }
 
-      function seedField(count = 36) {
+      function makeNode(x, y, strength = 1) {
+        return {
+          id: nextNodeId++,
+          x: clamp(x, 12, width - 12),
+          y: clamp(y, 12, height - 12),
+          z: rand(-1, 1),
+          vx: rand(-0.9, 0.9) * strength,
+          vy: rand(-0.9, 0.9) * strength,
+          vz: rand(-0.02, 0.02),
+          radius: rand(CFG.RADIUS_MIN, CFG.RADIUS_MAX),
+          energy: clamp(rand(0.5, 1.0) * strength, 0.2, 1.4),
+          lifetime: rand(700, 1200),
+          phase: rand(0, Math.PI * 2)
+        };
+      }
+
+      function pushNode(x, y, strength = 1) {
+        if (nodes.length >= CFG.MAX_NODES) {
+          nodes.shift();
+        }
+        nodes.push(makeNode(x, y, strength));
+      }
+
+      function seedField(count = CFG.INITIAL_NODES) {
         const cx = width * 0.5;
         const cy = height * 0.5;
-        const ring = Math.min(width, height) * 0.22;
+        const base = Math.min(width, height) * 0.22;
 
         for (let i = 0; i < count; i++) {
-          const a = (i / count) * Math.PI * 2 + rand(-0.12, 0.12);
-          const r = ring * rand(0.42, 1.0);
-          createNode(cx + Math.cos(a) * r, cy + Math.sin(a) * r, rand(0.75, 1.15));
+          const a = (i / count) * Math.PI * 2 + rand(-0.08, 0.08);
+          const r = base * rand(0.35, 1.0);
+          pushNode(cx + Math.cos(a) * r, cy + Math.sin(a) * r, rand(0.85, 1.15));
         }
       }
 
       function pulseCenter() {
         const cx = width * 0.5;
         const cy = height * 0.5;
-        for (let i = 0; i < 16; i++) {
-          createNode(cx + rand(-26, 26), cy + rand(-26, 26), 1.18);
+        for (let i = 0; i < CFG.CENTER_PULSE; i++) {
+          pushNode(cx + rand(-24, 24), cy + rand(-24, 24), 1.12);
         }
       }
 
       function resetField() {
         nodes = [];
         edges = [];
-        lockMap.clear();
-        clusterMap.clear();
-        ctx.clearRect(0, 0, width, height);
+        locks = new Map();
+        nextNodeId = 1;
         actx.clearRect(0, 0, width, height);
-        drawArchiveFade(true);
-        seedField(30);
+        ctx.clearRect(0, 0, width, height);
+        seedField(CFG.INITIAL_NODES);
         syncUI(0);
       }
 
       function syncUI(frameMs) {
         ui.nodeCount.textContent = String(nodes.length);
         ui.edgeCount.textContent = String(edges.length);
-        ui.lockCount.textContent = String([...lockMap.values()].filter(v => v.stable).length);
+        ui.lockCount.textContent = String([...locks.values()].filter(v => v.stable).length);
         ui.frameMs.textContent = frameMs.toFixed(1);
-        ui.budgetMode.textContent = budgetMode;
+        ui.modeLabel.textContent = frameMode;
       }
 
-      function cellKey(cx, cy) {
-        return cx + "|" + cy;
-      }
-
-      function buildSpatialHash() {
+      function buildGrid() {
         const grid = new Map();
         for (let i = 0; i < nodes.length; i++) {
           const n = nodes[i];
-          const gx = Math.floor(n.x / CONFIG.GRID_SIZE);
-          const gy = Math.floor(n.y / CONFIG.GRID_SIZE);
-          const key = cellKey(gx, gy);
+          const gx = Math.floor(n.x / CFG.GRID);
+          const gy = Math.floor(n.y / CFG.GRID);
+          const key = gx + "|" + gy;
           if (!grid.has(key)) grid.set(key, []);
           grid.get(key).push(i);
         }
         return grid;
       }
 
-      function getCandidateNeighbors(index, grid) {
-        const n = nodes[index];
-        const gx = Math.floor(n.x / CONFIG.GRID_SIZE);
-        const gy = Math.floor(n.y / CONFIG.GRID_SIZE);
-        const out = [];
+      function getNeighbors(i, grid) {
+        const n = nodes[i];
+        const gx = Math.floor(n.x / CFG.GRID);
+        const gy = Math.floor(n.y / CFG.GRID);
+        const list = [];
 
         for (let oy = -1; oy <= 1; oy++) {
           for (let ox = -1; ox <= 1; ox++) {
-            const key = cellKey(gx + ox, gy + oy);
+            const key = (gx + ox) + "|" + (gy + oy);
             const bucket = grid.get(key);
             if (!bucket) continue;
             for (let k = 0; k < bucket.length; k++) {
               const j = bucket[k];
-              if (j === index) continue;
-              out.push(j);
+              if (j !== i) list.push(j);
             }
           }
         }
 
-        out.sort((a, b) => metricDistance(n, nodes[a]) - metricDistance(n, nodes[b]));
-        if (out.length > CONFIG.MAX_NEIGHBORS_PER_NODE) {
-          out.length = CONFIG.MAX_NEIGHBORS_PER_NODE;
-        }
-        return out;
-      }
-
-      function updateNodes(dt) {
-        for (let i = nodes.length - 1; i >= 0; i--) {
-          const n = nodes[i];
-          n.age += dt;
-          n.lifetime -= CONFIG.LIFE_DECAY * dt * 0.06;
-          n.energy *= Math.pow(CONFIG.ENERGY_DECAY, dt);
-          n.phase += 0.02 + n.energy * 0.012;
-          n.vx += Math.cos(n.phase + n.z * 2.4) * CONFIG.BACKGROUND_DRIFT;
-          n.vy += Math.sin(n.phase - n.z * 1.7) * CONFIG.BACKGROUND_DRIFT;
-          n.vz += Math.sin(n.phase * 0.3) * 0.0004;
-
-          n.vx *= Math.pow(CONFIG.NODE_FRICTION, dt);
-          n.vy *= Math.pow(CONFIG.NODE_FRICTION, dt);
-          n.vz *= Math.pow(CONFIG.NODE_FRICTION, dt);
-
-          n.vx = clamp(n.vx, -CONFIG.VELOCITY_LIMIT, CONFIG.VELOCITY_LIMIT);
-          n.vy = clamp(n.vy, -CONFIG.VELOCITY_LIMIT, CONFIG.VELOCITY_LIMIT);
-          n.vz = clamp(n.vz, -0.05, 0.05);
-
-          n.x += n.vx * dt;
-          n.y += n.vy * dt;
-          n.z += n.vz * dt;
-
-          if (n.x < 8 || n.x > width - 8) n.vx *= -0.92;
-          if (n.y < 8 || n.y > height - 8) n.vy *= -0.92;
-
-          n.x = clamp(n.x, 8, width - 8);
-          n.y = clamp(n.y, 8, height - 8);
-          n.z = clamp(n.z, -1.4, 1.4);
-
-          if (n.lifetime <= 0.1 || n.energy < 0.03) {
-            nodes.splice(i, 1);
-          }
-        }
-      }
-
-      function applyPointerField() {
-        if (!activePointer.down) return;
-
-        const now = performance.now();
-        for (let i = 0; i < nodes.length; i++) {
-          const n = nodes[i];
-          const dx = activePointer.x - n.x;
-          const dy = activePointer.y - n.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 > 160 * 160) continue;
-          const force = 1 / Math.max(24, Math.sqrt(d2));
-          n.vx += dx * force * 0.006;
-          n.vy += dy * force * 0.006;
-          n.energy = clamp(n.energy + 0.0045, 0, 1.4);
-        }
-
-        if (now - activePointer.lastInject >= CONFIG.INJECT_COOLDOWN_MS && nodes.length < CONFIG.MAX_NODES) {
-          activePointer.lastInject = now;
-          createNode(activePointer.x, activePointer.y, 0.92);
-        }
-      }
-
-      function buildEdgesAndLocks() {
-        edges = [];
-        const grid = buildSpatialHash();
-        const seenEdge = new Set();
-        const nextLockMap = new Map();
-        let tripletsProcessed = 0;
-
-        for (let i = 0; i < nodes.length; i++) {
-          const a = nodes[i];
-          const neighbors = getCandidateNeighbors(i, grid);
-
-          for (let ni = 0; ni < neighbors.length; ni++) {
-            const j = neighbors[ni];
-            if (j <= i) continue;
-            const b = nodes[j];
-            const d = metricDistance(a, b);
-            const R = interactionRadius(a, b);
-
-            if (d < R) {
-              const key = i + "|" + j;
-              if (!seenEdge.has(key)) {
-                seenEdge.add(key);
-                edges.push({ i, j, d, strength: 1 - d / Math.max(R, 1) });
-                if (edges.length >= CONFIG.MAX_EDGES_DRAW) break;
-              }
-            }
-          }
-
-          if (edges.length >= CONFIG.MAX_EDGES_DRAW) break;
-
-          for (let n1 = 0; n1 < neighbors.length; n1++) {
-            for (let n2 = n1 + 1; n2 < neighbors.length; n2++) {
-              if (tripletsProcessed >= CONFIG.MAX_TRIPLETS_PER_FRAME) break;
-
-              const j = neighbors[n1];
-              const k = neighbors[n2];
-              if (j === k || j <= i || k <= i) continue;
-
-              const b = nodes[j];
-              const c = nodes[k];
-
-              const dab = metricDistance(a, b);
-              const dac = metricDistance(a, c);
-              const dbc = metricDistance(b, c);
-
-              const eab = dab < interactionRadius(a, b);
-              const eac = dac < interactionRadius(a, c);
-              const ebc = dbc < interactionRadius(b, c);
-
-              if (!(eab && eac && ebc)) continue;
-
-              const arr = [dab, dac, dbc].sort((m, n) => m - n);
-              const d1 = arr[0], d2 = arr[1], d3 = arr[2];
-
-              const phiHit =
-                Math.abs((d3 / Math.max(d2, 0.0001)) - PHI) < CONFIG.PHI_EPSILON ||
-                Math.abs((d2 / Math.max(d1, 0.0001)) - PHI) < CONFIG.PHI_EPSILON;
-
-              tripletsProcessed++;
-
-              if (!phiHit) continue;
-
-              const ids = [i, j, k].sort((m, n) => m - n);
-              const key = ids.join("|");
-              const prev = lockMap.get(key);
-
-              const state = {
-                ids,
-                hold: prev ? prev.hold + 1 : 1,
-                stable: false,
-                centroid: {
-                  x: (a.x + b.x + c.x) / 3,
-                  y: (a.y + b.y + c.y) / 3
-                },
-                points: [
-                  { x: a.x, y: a.y },
-                  { x: b.x, y: b.y },
-                  { x: c.x, y: c.y }
-                ]
-              };
-
-              if (state.hold >= CONFIG.LOCK_STABLE_FRAMES) {
-                state.stable = true;
-              }
-
-              nextLockMap.set(key, state);
-            }
-            if (tripletsProcessed >= CONFIG.MAX_TRIPLETS_PER_FRAME) break;
-          }
-        }
-
-        lockMap = nextLockMap;
-        buildClustersFromStableLocks();
-      }
-
-      function buildClustersFromStableLocks() {
-        clusterMap.clear();
-        const membership = new Map();
-
-        for (const [key, lock] of lockMap.entries()) {
-          if (!lock.stable) continue;
-          const ids = lock.ids;
-          const clusterKey = ids.join("|");
-
-          if (!clusterMap.has(clusterKey)) {
-            clusterMap.set(clusterKey, {
-              ids: [...ids],
-              hold: 1,
-              stable: false
-            });
-          }
-
-          const prev = clusterMap.get(clusterKey);
-          prev.hold += 1;
-          prev.stable = prev.hold >= CONFIG.CLUSTER_STABLE_FRAMES;
-
-          for (let i = 0; i < ids.length; i++) {
-            membership.set(ids[i], true);
-          }
-        }
+        list.sort((a, b) => metricDistance(n, nodes[a]) - metricDistance(n, nodes[b]));
+        if (list.length > CFG.MAX_NEIGHBORS) list.length = CFG.MAX_NEIGHBORS;
+        return list;
       }
 
       function convexHull(points) {
@@ -667,24 +452,152 @@
 
         upper.pop();
         lower.pop();
+
         const hull = lower.concat(upper);
         return hull.length >= 3 ? hull : null;
       }
 
-      function drawArchiveFade(forceSolid = false) {
-        if (forceSolid) {
-          actx.clearRect(0, 0, width, height);
-          return;
+      function updateNodes(dt) {
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+
+          n.phase += 0.018 + n.energy * 0.008;
+          n.energy *= Math.pow(CFG.ENERGY_DECAY, dt);
+          n.lifetime -= CFG.LIFE_DECAY * dt;
+
+          n.vx += Math.cos(n.phase + n.z * 1.3) * 0.002;
+          n.vy += Math.sin(n.phase - n.z * 1.1) * 0.002;
+          n.vz += Math.sin(n.phase * 0.3) * 0.0002;
+
+          if (pointer.down) {
+            const dx = pointer.x - n.x;
+            const dy = pointer.y - n.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < 180 * 180) {
+              const f = 1 / Math.max(28, Math.sqrt(d2));
+              n.vx += dx * f * CFG.POINTER_FORCE;
+              n.vy += dy * f * CFG.POINTER_FORCE;
+              n.energy = clamp(n.energy + 0.006, 0.2, 1.5);
+            }
+          }
+
+          n.vx *= Math.pow(CFG.FRICTION, dt);
+          n.vy *= Math.pow(CFG.FRICTION, dt);
+          n.vz *= Math.pow(CFG.FRICTION, dt);
+
+          n.x += n.vx * dt;
+          n.y += n.vy * dt;
+          n.z += n.vz * dt;
+
+          if (n.x <= 8 || n.x >= width - 8) n.vx *= CFG.BOUNCE;
+          if (n.y <= 8 || n.y >= height - 8) n.vy *= CFG.BOUNCE;
+
+          n.x = clamp(n.x, 8, width - 8);
+          n.y = clamp(n.y, 8, height - 8);
+          n.z = clamp(n.z, -1.4, 1.4);
         }
+      }
+
+      function buildTopology() {
+        const grid = buildGrid();
+        const newEdges = [];
+        const nextLocks = new Map();
+        let triplets = 0;
+
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          const neighbors = getNeighbors(i, grid);
+
+          for (let ni = 0; ni < neighbors.length; ni++) {
+            const j = neighbors[ni];
+            if (j <= i) continue;
+
+            const b = nodes[j];
+            const d = metricDistance(a, b);
+            const r = interactionRadius(a, b);
+
+            if (d < r) {
+              newEdges.push({
+                i,
+                j,
+                strength: 1 - (d / Math.max(r, 1))
+              });
+              if (newEdges.length >= CFG.MAX_EDGES_DRAW) break;
+            }
+          }
+
+          if (newEdges.length >= CFG.MAX_EDGES_DRAW) break;
+
+          for (let p = 0; p < neighbors.length; p++) {
+            for (let q = p + 1; q < neighbors.length; q++) {
+              if (triplets >= CFG.MAX_TRIPLETS_PER_FRAME) break;
+
+              const j = neighbors[p];
+              const k = neighbors[q];
+              if (j <= i || k <= i) continue;
+
+              const b = nodes[j];
+              const c = nodes[k];
+
+              const d1 = metricDistance(a, b);
+              const d2 = metricDistance(a, c);
+              const d3 = metricDistance(b, c);
+
+              const e1 = d1 < interactionRadius(a, b);
+              const e2 = d2 < interactionRadius(a, c);
+              const e3 = d3 < interactionRadius(b, c);
+
+              if (!(e1 && e2 && e3)) continue;
+
+              const sorted = [d1, d2, d3].sort((m, n) => m - n);
+              const s1 = sorted[0];
+              const s2 = sorted[1];
+              const s3 = sorted[2];
+
+              const phiLock =
+                Math.abs((s3 / Math.max(s2, 0.0001)) - PHI) < CFG.PHI_EPS ||
+                Math.abs((s2 / Math.max(s1, 0.0001)) - PHI) < CFG.PHI_EPS;
+
+              triplets++;
+              if (!phiLock) continue;
+
+              const ids = [a.id, b.id, c.id].sort((m, n) => m - n);
+              const key = ids.join("|");
+              const prev = locks.get(key);
+
+              const item = {
+                ids,
+                hold: prev ? prev.hold + 1 : 1,
+                stable: false,
+                points: [
+                  { x: a.x, y: a.y },
+                  { x: b.x, y: b.y },
+                  { x: c.x, y: c.y }
+                ],
+                cx: (a.x + b.x + c.x) / 3,
+                cy: (a.y + b.y + c.y) / 3
+              };
+
+              if (item.hold >= CFG.LOCK_STABLE_FRAMES) item.stable = true;
+              nextLocks.set(key, item);
+            }
+            if (triplets >= CFG.MAX_TRIPLETS_PER_FRAME) break;
+          }
+        }
+
+        edges = newEdges;
+        locks = nextLocks;
+      }
+
+      function drawArchiveFade() {
         actx.save();
-        actx.globalCompositeOperation = "source-over";
-        actx.fillStyle = `rgba(11, 13, 16, ${CONFIG.ARCHIVE_FADE_ALPHA})`;
+        actx.fillStyle = `rgba(6,8,11,${CFG.ARCHIVE_FADE_ALPHA})`;
         actx.fillRect(0, 0, width, height);
         actx.restore();
       }
 
-      function drawStableHullsToArchive() {
-        for (const lock of lockMap.values()) {
+      function drawArchiveLocks() {
+        for (const lock of locks.values()) {
           if (!lock.stable) continue;
           const hull = convexHull(lock.points);
           if (!hull) continue;
@@ -692,12 +605,10 @@
           actx.save();
           actx.beginPath();
           actx.moveTo(hull[0].x, hull[0].y);
-          for (let i = 1; i < hull.length; i++) {
-            actx.lineTo(hull[i].x, hull[i].y);
-          }
+          for (let i = 1; i < hull.length; i++) actx.lineTo(hull[i].x, hull[i].y);
           actx.closePath();
-          actx.fillStyle = "rgba(216, 194, 138, 0.05)";
-          actx.strokeStyle = "rgba(216, 194, 138, 0.22)";
+          actx.fillStyle = "rgba(216,194,138,.05)";
+          actx.strokeStyle = "rgba(216,194,138,.20)";
           actx.lineWidth = 1;
           actx.fill();
           actx.stroke();
@@ -708,113 +619,107 @@
       function render() {
         ctx.clearRect(0, 0, width, height);
 
-        ctx.save();
-        ctx.strokeStyle = "rgba(255,255,255,0.12)";
-        ctx.lineWidth = 1;
-
         for (let i = 0; i < edges.length; i++) {
           const e = edges[i];
           const a = nodes[e.i];
           const b = nodes[e.j];
           if (!a || !b) continue;
 
-          const alpha = clamp(0.06 + e.strength * 0.24, 0.05, 0.26);
-          ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = `rgba(255,255,255,${clamp(0.05 + e.strength * 0.20, 0.05, 0.22)})`;
+          ctx.lineWidth = 1;
           ctx.stroke();
         }
-        ctx.restore();
 
-        for (const lock of lockMap.values()) {
+        for (const lock of locks.values()) {
           if (!lock.stable) continue;
-
           const hull = convexHull(lock.points);
           if (!hull) continue;
 
-          ctx.save();
           ctx.beginPath();
           ctx.moveTo(hull[0].x, hull[0].y);
-          for (let i = 1; i < hull.length; i++) {
-            ctx.lineTo(hull[i].x, hull[i].y);
-          }
+          for (let i = 1; i < hull.length; i++) ctx.lineTo(hull[i].x, hull[i].y);
           ctx.closePath();
-          ctx.fillStyle = "rgba(216, 194, 138, 0.035)";
-          ctx.strokeStyle = "rgba(216, 194, 138, 0.36)";
-          ctx.lineWidth = 1.2;
+          ctx.fillStyle = "rgba(216,194,138,.035)";
+          ctx.strokeStyle = "rgba(216,194,138,.34)";
+          ctx.lineWidth = 1.15;
           ctx.fill();
           ctx.stroke();
 
           ctx.beginPath();
-          ctx.arc(lock.centroid.x, lock.centroid.y, 2.4, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(143, 214, 163, 0.85)";
+          ctx.arc(lock.cx, lock.cy, 2.2, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(143,214,163,.85)";
           ctx.fill();
-          ctx.restore();
         }
 
         for (let i = 0; i < nodes.length; i++) {
           const n = nodes[i];
-          const r = nodeRadius(n);
+          const r = n.radius + n.energy * 4.5;
 
-          ctx.save();
           ctx.beginPath();
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(243,245,247,${clamp(0.18 + n.energy * 0.24, 0.18, 0.44)})`;
+          ctx.fillStyle = `rgba(242,245,247,${clamp(0.14 + n.energy * 0.18, 0.14, 0.34)})`;
           ctx.fill();
 
           ctx.beginPath();
-          ctx.arc(n.x, n.y, Math.max(1.25, r * 0.34), 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(216,194,138,${clamp(0.32 + n.energy * 0.28, 0.32, 0.72)})`;
+          ctx.arc(n.x, n.y, Math.max(1.2, r * 0.36), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(216,194,138,${clamp(0.28 + n.energy * 0.24, 0.28, 0.64)})`;
           ctx.fill();
-          ctx.restore();
         }
 
-        if (activePointer.down) {
-          ctx.save();
+        if (pointer.down) {
           ctx.beginPath();
-          ctx.arc(activePointer.x, activePointer.y, 26, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(143,214,163,0.35)";
+          ctx.arc(pointer.x, pointer.y, 26, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(143,214,163,.32)";
           ctx.lineWidth = 1;
           ctx.stroke();
-          ctx.restore();
         }
       }
 
-      function step(now) {
-        if (!lastTime) lastTime = now;
-        const rawDt = (now - lastTime) / 16.6667;
-        lastTime = now;
+      function watchdog() {
+        if (nodes.length === 0) {
+          emptyFrames += 1;
+        } else {
+          emptyFrames = 0;
+        }
 
-        const dt = clamp(rawDt, 0.7, 1.4);
-        const frameStart = performance.now();
+        if (emptyFrames >= CFG.WATCHDOG_EMPTY_LIMIT) {
+          seedField(CFG.INITIAL_NODES);
+          emptyFrames = 0;
+        }
+      }
 
-        applyPointerField();
+      function step(ts) {
+        if (!lastTs) lastTs = ts;
+        const dt = clamp((ts - lastTs) / 16.6667, 0.8, 1.35);
+        lastTs = ts;
+
+        const t0 = performance.now();
+
         updateNodes(dt);
-
-        const beforeBuild = performance.now();
-        buildEdgesAndLocks();
-        const buildMs = performance.now() - beforeBuild;
-
-        drawArchiveFade(false);
-        drawStableHullsToArchive();
+        buildTopology();
+        watchdog();
+        drawArchiveFade();
+        drawArchiveLocks();
         render();
 
-        const frameMs = performance.now() - frameStart;
+        const frameMs = performance.now() - t0;
 
-        if (frameMs > CONFIG.FRAME_BUDGET_MS || buildMs > CONFIG.FRAME_BUDGET_MS * 0.62) {
-          budgetMode = "guarded";
-        } else if (frameMs > CONFIG.FRAME_BUDGET_MS * 0.82) {
-          budgetMode = "adaptive";
+        if (frameMs > CFG.FRAME_BUDGET_MS) {
+          frameMode = "guarded";
+        } else if (frameMs > CFG.FRAME_BUDGET_MS * 0.75) {
+          frameMode = "adaptive";
         } else {
-          budgetMode = "nominal";
+          frameMode = "nominal";
         }
 
         syncUI(frameMs);
         rafId = requestAnimationFrame(step);
       }
 
-      function pointerPosFromEvent(ev) {
+      function pointerPos(ev) {
         const rect = mainCanvas.getBoundingClientRect();
         return {
           x: ev.clientX - rect.left,
@@ -823,26 +728,30 @@
       }
 
       function onPointerDown(ev) {
-        const p = pointerPosFromEvent(ev);
-        activePointer.down = true;
-        activePointer.x = p.x;
-        activePointer.y = p.y;
-        activePointer.lastInject = 0;
-        for (let i = 0; i < 6; i++) createNode(p.x, p.y, 1.04);
+        const p = pointerPos(ev);
+        pointer.down = true;
+        pointer.x = p.x;
+        pointer.y = p.y;
+
+        for (let i = 0; i < CFG.INJECT_BATCH; i++) {
+          pushNode(p.x + rand(-14, 14), p.y + rand(-14, 14), 1.05);
+        }
       }
 
       function onPointerMove(ev) {
-        const p = pointerPosFromEvent(ev);
-        activePointer.x = p.x;
-        activePointer.y = p.y;
+        const p = pointerPos(ev);
+        pointer.x = p.x;
+        pointer.y = p.y;
       }
 
       function onPointerUp() {
-        activePointer.down = false;
+        pointer.down = false;
       }
 
-      function bindEvents() {
-        window.addEventListener("resize", resize, { passive: true });
+      function bind() {
+        window.addEventListener("resize", () => {
+          resize();
+        }, { passive: true });
 
         mainCanvas.addEventListener("pointerdown", onPointerDown);
         window.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -850,20 +759,20 @@
         window.addEventListener("pointercancel", onPointerUp, { passive: true });
 
         ui.resetBtn.addEventListener("click", resetField);
-        ui.seedBtn.addEventListener("click", () => seedField(18));
+        ui.seedBtn.addEventListener("click", () => seedField(12));
         ui.pulseBtn.addEventListener("click", pulseCenter);
 
         window.addEventListener("keydown", (ev) => {
-          const key = ev.key.toLowerCase();
-          if (key === "r") resetField();
-          if (key === "s") seedField(18);
-          if (key === "p") pulseCenter();
+          const k = ev.key.toLowerCase();
+          if (k === "r") resetField();
+          if (k === "s") seedField(12);
+          if (k === "p") pulseCenter();
         });
       }
 
       function start() {
         resize();
-        bindEvents();
+        bind();
         resetField();
         cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(step);
